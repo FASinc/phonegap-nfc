@@ -702,6 +702,7 @@ public class NfcPlugin extends CordovaPlugin {
                 }
             } catch (JSONException e) {
                 Log.e(Util.TAG, "Failed to convert ndefMessage into json", e);
+                sendLogToJs("ERROR", "Failed to convert ndefMessage into json");
             }
         }
         return json;
@@ -797,6 +798,7 @@ public class NfcPlugin extends CordovaPlugin {
 
             } catch (IOException ex) {
                 Log.e(TAG, "Tag connection failed", ex);
+                sendLogToJs("ERROR", "Tag connection failed: " + ex.getMessage());
                 callbackContext.error("Tag connection failed");
 
             } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
@@ -863,5 +865,23 @@ public class NfcPlugin extends CordovaPlugin {
                 callbackContext.error(e.getMessage());
             }
         });
+    }
+
+    private void sendLogToJs(String level, String message) {
+        try {
+            JSONObject log = new JSONObject();
+            log.put("logType", "native");
+            log.put("level", level);
+            log.put("message", message);
+
+            PluginResult result = new PluginResult(PluginResult.Status.OK, log);
+            result.setKeepCallback(true);
+
+            if (channelCallback != null) {
+                channelCallback.sendPluginResult(result);
+            }
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to send native log to JS", e);
+        }
     }
 }

@@ -589,17 +589,40 @@ public class NfcPlugin extends CordovaPlugin {
         getActivity().runOnUiThread(() -> {
             NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
 
-            if (nfcAdapter != null && !getActivity().isFinishing()) {
+                try{
+                    if(nfcAdapter == null){
+                        sendLogEvent("startNfc", "nfcAdapter is null, waiting 5 seconds" , 2); 
+                        // wait 5 seconds
+                        Thread.sleep(5000);
+                        nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+                    }
+                    if (getActivity().isFinishing() == true){
+                        sendLogEvent("startNfc", "nfcAdapter is not null, but activity is finishing, waiting 5 seconds" , 2); 
+                        Thread.sleep(5000);
+                    } 
+                    
+                } catch( Exception ex){
+                    sendLogEvent("startNfc", "Error trying to wait for 5 seconds. Error: " + ex.getMessage(), 2);  
+                }
+            if(nfcAdapter == null){
+                sendLogEvent("startNfc", "nfcAdapter is still null after 5 seconds." , 2); 
+            } else if (getActivity().isFinishing() == true){
+                sendLogEvent("startNfc", "nfcAdapter is not null, but activity is still finishing after 5 seconds." , 2); 
+            } else if (nfcAdapter != null && !getActivity().isFinishing()) {
                 try {
                     IntentFilter[] intentFilters = getIntentFilters();
                     String[][] techLists = getTechLists();
                     if (intentFilters.length > 0 || techLists.length > 0) {
                         nfcAdapter.enableForegroundDispatch(getActivity(), getPendingIntent(), intentFilters, techLists);
+                    } else {
+                        sendLogEvent("startNfc", "intentFilters and techLists lengths are zero" , 2); 
                     }
                 } catch (IllegalStateException e) {
                     Log.w(TAG, "Illegal State Exception starting NFC. Assuming application is terminating.");
                     sendLogEvent("startNfc", "Illegal State Exception starting NFC. Assuming application is terminating. Error: " + e.getMessage(), 2);    
                 }
+            } else {
+                sendLogEvent("startNfc", "This can never happen." , 2); 
             }
         });
     }
@@ -703,12 +726,17 @@ public class NfcPlugin extends CordovaPlugin {
 
 private void sendLogEvent(String source, String message, Integer errorLevel){
     try {
-        Log.d(TAG, "sendLogEvent 1 source=" + source + " ErrorLevel=" + errorLevel.toString() +  " message=" + message);
+        if(errorLevel > 1){
+            Log.e(TAG, "sendLogEvent source=" + source + " ErrorLevel=" + errorLevel.toString() +  " message=" + message);
+        } else {
+            Log.d(TAG, "sendLogEvent source=" + source + " ErrorLevel=" + errorLevel.toString() +  " message=" + message);
+        }
         JSONObject event = new JSONObject();
         event.put("type", "sendLogEvent");
         event.put("errorLevel", errorLevel);
         event.put("source", source);
         event.put("message", message);
+        event.put("timestamp", new Date());
         event.put("nfcStatus", getNfcStatus());
         sendEvent("ndef", event);
     } catch (JSONException e) {
@@ -717,7 +745,7 @@ private void sendLogEvent(String source, String message, Integer errorLevel){
 }
     private void sendEvent(String type, JSONObject tag) {
         try {
-            Log.d(TAG, "sendEvent 1 type=" + type);
+            Log.d(TAG, "sendEvent type=" + type);
             JSONObject event = new JSONObject();
             event.put("type", type);
             event.put("tag", tag);
@@ -726,10 +754,9 @@ private void sendLogEvent(String source, String message, Integer errorLevel){
             result.setKeepCallback(true);
 
             if (channelCallback != null) {
-                Log.d(TAG, "sendEvent 2 type=" + type);
                 channelCallback.sendPluginResult(result);
             } else {
-                Log.d(TAG, "sendEvent 3 type=" + type);
+                Log.d(TAG, "sendEvent Postponed type=" + type);
                 postponedPluginResult = new PostponedPluginResult(new Date(), result);
             }
         } catch (JSONException e) {

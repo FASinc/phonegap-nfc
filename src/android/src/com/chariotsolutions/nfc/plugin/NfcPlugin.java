@@ -77,7 +77,7 @@ public class NfcPlugin extends CordovaPlugin {
     private static final String STATUS_NO_NFC = "NO_NFC";
     private static final String STATUS_NFC_DISABLED = "NFC_DISABLED";
     private static final String STATUS_NDEF_PUSH_DISABLED = "NDEF_PUSH_DISABLED";
-
+    private static final String SOFT_REFRESH_DISCOVERY = "softRefreshDiscovery"
     private static final String TAG = "NfcPlugin";
     private final List<IntentFilter> intentFilters = new ArrayList<>();
     private final ArrayList<String[]> techLists = new ArrayList<>();
@@ -147,6 +147,9 @@ public class NfcPlugin extends CordovaPlugin {
         createPendingIntent();
 
         switch (action) {
+            case SOFT_REFRESH_DISCOVERY:
+                softRefreshDiscovery();
+                break;
             case READER_MODE:
                 int flags = data.getInt(0);
                 readerMode(flags, callbackContext);
@@ -239,6 +242,31 @@ public class NfcPlugin extends CordovaPlugin {
         return true;
     }
 
+private void softRefreshDiscovery() {
+
+  getActivity().runOnUiThread(() -> {
+
+    NfcAdapter ad = NfcAdapter.getDefaultAdapter(getActivity());
+    if (ad == null) return;
+    if (readerModeCallback != null) {
+      // Reader mode active > bounce it
+      ad.disableReaderMode(getActivity());
+      // Reuse the last flags if you store them, otherwise re-enable with common flags
+      int flags = NfcAdapter.FLAG_READER_NFC_A
+                | NfcAdapter.FLAG_READER_NFC_B
+                | NfcAdapter.FLAG_READER_NFC_F
+                | NfcAdapter.FLAG_READER_NFC_V
+                | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK;
+      ad.enableReaderMode(getActivity(), callback, flags, null);
+    } else {
+      // Foreground dispatch path
+      restartNfc();
+    }
+
+  });
+
+}
+ 
     private String getNfcStatus() {
         NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
         if (nfcAdapter == null) {
@@ -519,8 +547,8 @@ public class NfcPlugin extends CordovaPlugin {
     }
 
     private void createPendingIntent() {
-        Log.d(TAG, "createPendingIntent ");
         if (pendingIntent == null) {
+            Log.d(TAG, "createPendingIntent: Does not exist, so create one.");
             Activity activity = getActivity();
             Intent intent = new Intent(activity, activity.getClass());
             intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -529,6 +557,8 @@ public class NfcPlugin extends CordovaPlugin {
             } else {
                 pendingIntent = PendingIntent.getActivity(activity, 0, intent, 0);
             }
+        } else {
+            Log.d(TAG, "createPendingIntent: Already exists");
         }
     }
 
@@ -639,6 +669,8 @@ public class NfcPlugin extends CordovaPlugin {
                     Log.w(TAG, "Illegal State Exception stopping NFC. Assuming application is terminating.");
                     sendLogEvent("stopNfc", "Illegal State Exception starting NFC. Assuming application is terminating. Error: " + e.getMessage(), 2);    
                 }
+            } else {
+                Log.d(TAG, "stopNfc nfcAdapter is null");
             }
         });
     }
@@ -718,6 +750,8 @@ public class NfcPlugin extends CordovaPlugin {
                 }
             } else if (action.equals(NfcAdapter.ACTION_TAG_DISCOVERED)) {
                 fireTagEvent(tag, messages);
+            } else {
+                Log.d(TAG, "parseMessage Unhandled if else");
             }
 
             setIntent(new Intent());
@@ -816,7 +850,7 @@ private void sendLogEvent(String source, String message, Integer errorLevel){
 
     @Override
     public void onPause(boolean multitasking) {
-        Log.d(TAG, "onPause " + getIntent());
+        Log.d(TAG, "onPause multitasking=" + multitasking + " Intent=" + getIntent());
         super.onPause(multitasking);
         if (multitasking) {
             stopNfc();
@@ -825,7 +859,7 @@ private void sendLogEvent(String source, String message, Integer errorLevel){
 
     @Override
     public void onResume(boolean multitasking) {
-        Log.d(TAG, "onResume " + getIntent());
+        Log.d(TAG, "onResume multitasking=" + multitasking + " Intent=" + getIntent());
         super.onResume(multitasking);
         startNfc();
     }

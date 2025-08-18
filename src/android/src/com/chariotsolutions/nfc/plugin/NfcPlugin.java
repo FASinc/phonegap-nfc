@@ -243,12 +243,16 @@ public class NfcPlugin extends CordovaPlugin {
     }
 
 private void softRefreshDiscovery() {
-
+    Log.d(TAG, "softRefreshDiscovery ");
   getActivity().runOnUiThread(() -> {
 
     NfcAdapter ad = NfcAdapter.getDefaultAdapter(getActivity());
-    if (ad == null) return;
+    if (ad == null) {
+        Log.d(TAG, "softRefreshDiscovery nfcAdapter is null");
+        return;
+    }
     if (readerModeCallback != null) {
+        Log.d(TAG, "softRefreshDiscovery readerModeCallback is not null");
       // Reader mode active > bounce it
       ad.disableReaderMode(getActivity());
       // Reuse the last flags if you store them, otherwise re-enable with common flags
@@ -259,9 +263,14 @@ private void softRefreshDiscovery() {
                 | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK;
       ad.enableReaderMode(getActivity(), callback, flags, null);
     } else {
+        Log.d(TAG, "softRefreshDiscovery readerModeCallback is null");
       // Foreground dispatch path
       restartNfc();
     }
+    String message = "softRefreshDiscovery";
+    message = message + " NfcAdapter is Null(" + (ad == null) + ")";
+    message = message + " readerModeCallback is Null(" + (readerModeCallback == null) + ")";
+    sendLogEvent("softRefreshDiscovery", message, 2);
 
   });
 

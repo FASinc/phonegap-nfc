@@ -1,1 +1,1 @@
-robocopy .\ ..\phonegap-nfc_%1 /S /E /PURGE /XD .* _Components node_modules bower_components www obj
+robocopy .\ ..\phonegap-nfc_%1 /S /E /PURGE /XD .* _Components node_modules bower_components obj

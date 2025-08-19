@@ -77,7 +77,7 @@ public class NfcPlugin extends CordovaPlugin {
     private static final String STATUS_NO_NFC = "NO_NFC";
     private static final String STATUS_NFC_DISABLED = "NFC_DISABLED";
     private static final String STATUS_NDEF_PUSH_DISABLED = "NDEF_PUSH_DISABLED";
-    private static final String SOFT_REFRESH_DISCOVERY = "softRefreshDiscovery"
+    private static final String SOFT_REFRESH_DISCOVERY = "softRefreshDiscovery";
     private static final String TAG = "NfcPlugin";
     private final List<IntentFilter> intentFilters = new ArrayList<>();
     private final ArrayList<String[]> techLists = new ArrayList<>();

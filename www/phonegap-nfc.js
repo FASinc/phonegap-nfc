@@ -481,6 +481,9 @@ var nfc = {
         cordova.exec(win, fail, "NfcPlugin", "enabled", [[]]);
     },
 
+    softRefreshDiscovery: function (win, fail) {
+        cordova.exec(win, fail, "NfcPlugin", "softRefreshDiscovery", [[]]);
+    },
     removeTagDiscoveredListener: function (callback, win, fail) {
         document.removeEventListener("tag", callback, false);
         cordova.exec(win, fail, "NfcPlugin", "removeTag", []);

@@ -91,6 +91,7 @@ public class NfcPlugin extends CordovaPlugin {
     private CallbackContext channelCallback;
 
     private PostponedPluginResult postponedPluginResult = null;
+    private static Boolean enableExtraLogging = false;
 
     class PostponedPluginResult {
         private Date moment;
@@ -105,11 +106,11 @@ public class NfcPlugin extends CordovaPlugin {
             return this.moment.after(new Date(new Date().getTime() - 30000));
         }
     }
-
+    
     @Override
     public boolean execute(String action, JSONArray data, CallbackContext callbackContext) throws JSONException {
         Log.d(TAG, "execute " + action);
-        sendLogEvent("execute", action, 0);
+        if(enableExtraLogging == true) sendLogEvent("execute", action, 0);
         if (action.equalsIgnoreCase(SHOW_SETTINGS)) {
             showSettings(callbackContext);
             return true;
@@ -148,7 +149,7 @@ public class NfcPlugin extends CordovaPlugin {
 
         switch (action) {
             case SOFT_REFRESH_DISCOVERY:
-                softRefreshDiscovery();
+                softRefreshDiscovery(data.getString(0), callbackContext);
                 break;
             case READER_MODE:
                 int flags = data.getInt(0);
@@ -241,39 +242,79 @@ public class NfcPlugin extends CordovaPlugin {
 
         return true;
     }
-
-private void softRefreshDiscovery() {
-    Log.d(TAG, "softRefreshDiscovery ");
-  getActivity().runOnUiThread(() -> {
-
-    NfcAdapter ad = NfcAdapter.getDefaultAdapter(getActivity());
-    if (ad == null) {
-        Log.d(TAG, "softRefreshDiscovery nfcAdapter is null");
-        return;
-    }
-    if (readerModeCallback != null) {
-        Log.d(TAG, "softRefreshDiscovery readerModeCallback is not null");
-      // Reader mode active > bounce it
-      ad.disableReaderMode(getActivity());
-      // Reuse the last flags if you store them, otherwise re-enable with common flags
-      int flags = NfcAdapter.FLAG_READER_NFC_A
-                | NfcAdapter.FLAG_READER_NFC_B
-                | NfcAdapter.FLAG_READER_NFC_F
-                | NfcAdapter.FLAG_READER_NFC_V
-                | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK;
-      ad.enableReaderMode(getActivity(), callback, flags, null);
-    } else {
-        Log.d(TAG, "softRefreshDiscovery readerModeCallback is null");
-      // Foreground dispatch path
-      restartNfc();
-    }
-    String message = "softRefreshDiscovery";
-    message = message + " NfcAdapter is Null(" + (ad == null) + ")";
-    message = message + " readerModeCallback is Null(" + (readerModeCallback == null) + ")";
-    sendLogEvent("softRefreshDiscovery", message, 2);
-
-  });
-
+private void softRefreshDiscovery(String action, CallbackContext callbackContext) {
+    getActivity().runOnUiThread(() -> {
+        try{
+            String message = "softRefreshDiscovery ," + action + ", ";
+            if(action.equalsIgnoreCase("enableExtraLogging")){
+                enableExtraLogging = true;
+            }
+            Log.d(TAG, "softRefreshDiscovery " + action);
+            message = message + " enableExtraLogging = (" + (enableExtraLogging.toString()) + "),";
+            NfcAdapter ad = NfcAdapter.getDefaultAdapter(getActivity());
+            if(ad == null){
+                Log.d(TAG, "softRefreshDiscovery nfcAdapter is null");
+            } else {
+                if(action.equalsIgnoreCase("resetDiscoveryTechnology")){
+                    message = message + "rdt ";
+                    ad.resetDiscoveryTechnology(getActivity());
+                }   
+                if(action.equalsIgnoreCase("setDiscoveryTechnologyKeep")){
+                    message = message + "sdtk ";
+                    ad.setDiscoveryTechnology(getActivity(),ad.FLAG_READER_DISABLE, ad.FLAG_LISTEN_KEEP);
+                }    
+                if(action.equalsIgnoreCase("setDiscoveryTechnologyDisable")){
+                    message = message + "sdtd ";
+                    ad.setDiscoveryTechnology(getActivity(),ad.FLAG_READER_DISABLE, ad.FLAG_LISTEN_DISABLE);
+                }    
+                message = message + " NfcAdapter.isEnabled (" + (ad.isEnabled()) + "),";
+                message = message + " isSecureNfcSupported (" + (ad.isSecureNfcSupported()) + "),";
+            }
+            if(action.equalsIgnoreCase("resetNfcOnAndroid")){
+                message = message + "rnoa ";
+                Bundle extras = new Bundle();
+                readerModeCallback = callbackContext;
+                getActivity().runOnUiThread(() -> {
+                    NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+                    if (nfcAdapter != null) {
+                        int flags = NfcAdapter.FLAG_READER_NFC_A
+                                    | NfcAdapter.FLAG_READER_NFC_B
+                                    | NfcAdapter.FLAG_READER_NFC_F
+                                    | NfcAdapter.FLAG_READER_NFC_V
+                                    | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK;                            
+                        nfcAdapter.enableReaderMode(getActivity(), callback, flags, null);
+                        nfcAdapter.disableReaderMode(getActivity());
+                    } else {
+                        callbackContext.error("NFC Adapter not available");
+                    }
+                });                
+            }
+            IntentFilter[] intentFilters = getIntentFilters();
+            message = message + " intentFilters count (" + (intentFilters.length) + "),";
+            
+            String[][] techLists = getTechLists();
+            message = message + " techLists count (" + (techLists.length) + "),";
+            message = message + " enableExtraLogging = (" + (enableExtraLogging) + ")";
+            //message = message + " isTagIntentAllowed is Null(" + (ad.isTagIntentAllowed()) + ")";
+            message = message + " NfcAdapter (" + (ad == null ? "Is Null" : "Is Not Null") + "),";
+            message = message + " readerModeCallback (" + (readerModeCallback == null ? "Is Null" : "Is Not Null") + "),";
+            message = message + " channelCallback (" + (channelCallback == null ? "Is Null" : "Is Not Null") + "),";
+            message = message + " savedIntent (" + (savedIntent == null ? "Is Null" : "Is Not Null") + "),";
+            message = message + " pendingIntent (" + (pendingIntent == null ? "Is Null" : "Is Not Null") + "),";
+            message = message + " getActivity (" + (getActivity() == null ? "Is Null" : "Is Not Null") + "),";
+            Intent intent = getIntent();
+            message = message + " getIntent (" + (intent == null ? "Is Null" : "Is Not Null") + "),";
+            if(intent != null){
+                String action2 = intent.getAction();
+                message = message + " intent action (" + (action2 == null ? "Is Null" : action2) + "),";
+            }
+            if(enableExtraLogging == true) sendLogEvent("softRefreshDiscovery " + action + " ", message, 1);
+            callbackContext.success(message);
+        } catch (Exception e) {
+               sendLogEvent("softRefreshDiscovery " + action + " ", "Exception Error: " + e.getMessage(), 2);    
+               callbackContext.error(e.getMessage());
+        }        
+    });
 }
  
     private String getNfcStatus() {
@@ -300,6 +341,7 @@ private void softRefreshDiscovery() {
             }
         });
     }
+    
 
     private void disableReaderMode(CallbackContext callbackContext) {
         Log.d(TAG, "disableReaderMode ");
@@ -616,13 +658,14 @@ private void softRefreshDiscovery() {
     }
 
     private void restartNfc() {
-        Log.d(TAG, "restartNfc");
+        Log.d(TAG, "restartNfc Begin");
         stopNfc();
         startNfc();
+        Log.d(TAG, "restartNfc End");
     }
 
     private void startNfc() {
-        Log.d(TAG, "startNfc");
+        Log.d(TAG, "startNfc Begin");
         createPendingIntent();
 
         getActivity().runOnUiThread(() -> {
@@ -663,12 +706,13 @@ private void softRefreshDiscovery() {
             } else {
                 sendLogEvent("startNfc", "This can never happen." , 2); 
             }
+            Log.d(TAG, "startNfc End");
         });
     }
 
     private void stopNfc() {
-        Log.d(TAG, "stopNfc");
         getActivity().runOnUiThread(() -> {
+            Log.d(TAG, "stopNfc Begin");
             NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
 
             if (nfcAdapter != null) {
@@ -681,6 +725,7 @@ private void softRefreshDiscovery() {
             } else {
                 Log.d(TAG, "stopNfc nfcAdapter is null");
             }
+            Log.d(TAG, "stopNfc End");
         });
     }
 
@@ -733,7 +778,7 @@ private void softRefreshDiscovery() {
 
     private void parseMessage() {
         cordova.getThreadPool().execute(() -> {
-            Log.d(TAG, "parseMessage intent=" + getIntent());
+            Log.d(TAG, "parseMessage Begin intent=" + getIntent());
             Intent intent = getIntent();
             String action = intent.getAction();
             Log.d(TAG, "parseMessage action=" + action);
@@ -764,6 +809,7 @@ private void softRefreshDiscovery() {
             }
 
             setIntent(new Intent());
+            Log.d(TAG, "parseMessage End");
         });
     }
 
@@ -825,7 +871,7 @@ private void sendLogEvent(String source, String message, Integer errorLevel){
 
     private JSONObject buildNdefJSON(Ndef ndef, Parcelable[] messages) {
         JSONObject json = Util.ndefToJSON(ndef);
-        Log.d(TAG, "buildNdefJSON ");
+        Log.d(TAG, "buildNdefJSON Begin");
         if (ndef == null && messages != null) {
             try {
                 if (messages.length > 0) {
@@ -843,6 +889,7 @@ private void sendLogEvent(String source, String message, Integer errorLevel){
                 sendLogEvent("buildNdefJSON", "Failed to convert ndefMessage into json " + e.getMessage(), 2);
             }
         }
+        Log.d(TAG, "buildNdefJSON End");
         return json;
     }
 
@@ -859,27 +906,30 @@ private void sendLogEvent(String source, String message, Integer errorLevel){
 
     @Override
     public void onPause(boolean multitasking) {
-        Log.d(TAG, "onPause multitasking=" + multitasking + " Intent=" + getIntent());
+        Log.d(TAG, "onPause Begin multitasking=" + multitasking + " Intent=" + getIntent());
         super.onPause(multitasking);
         if (multitasking) {
             stopNfc();
         }
+        Log.d(TAG, "onPause End multitasking=" + multitasking + " Intent=" + getIntent());
     }
 
     @Override
     public void onResume(boolean multitasking) {
-        Log.d(TAG, "onResume multitasking=" + multitasking + " Intent=" + getIntent());
+        Log.d(TAG, "onResume Begin multitasking=" + multitasking + " Intent=" + getIntent());
         super.onResume(multitasking);
         startNfc();
+        Log.d(TAG, "onResume End multitasking=" + multitasking + " Intent=" + getIntent());
     }
 
     @Override
     public void onNewIntent(Intent intent) {
-        Log.d(TAG, "onNewIntent " + intent);
+        Log.d(TAG, "onNewIntent Begin " + intent);
         super.onNewIntent(intent);
         setIntent(intent);
         savedIntent = intent;
         parseMessage();
+        Log.d(TAG, "onNewIntent End " + intent);
     }
 
     private Activity getActivity() {

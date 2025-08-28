@@ -268,7 +268,8 @@ private void softRefreshDiscovery(String action, CallbackContext callbackContext
                     ad.setDiscoveryTechnology(getActivity(),ad.FLAG_READER_DISABLE, ad.FLAG_LISTEN_DISABLE);
                 }    
                 message = message + " NfcAdapter.isEnabled (" + (ad.isEnabled()) + "),";
-                message = message + " isSecureNfcSupported (" + (ad.isSecureNfcSupported()) + "),";
+                // does not work on android 9
+                //message = message + " isSecureNfcSupported (" + (ad.isSecureNfcSupported()) + "),";
             }
             if(action.equalsIgnoreCase("resetNfcOnAndroid")){
                 message = message + "rnoa ";

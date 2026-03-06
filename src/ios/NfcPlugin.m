@@ -19,6 +19,7 @@
 @property (nonatomic, assign) BOOL returnTagInCallback;
 @property (nonatomic, assign) BOOL returnTagInEvent;
 @property (nonatomic, assign) BOOL keepSessionOpen;
+@property (nonatomic, assign) NSInteger tagRetryCount;
 @property (strong, nonatomic) NFCReaderSession *nfcSession API_AVAILABLE(ios(11.0));
 @property (strong, nonatomic) NFCNDEFMessage *messageToWrite API_AVAILABLE(ios(11.0));
 @end
@@ -228,9 +229,20 @@
     [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
         if (error) {
             NSLog(@"%@", error);
+
+            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
+                self.tagRetryCount++;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                    [(id)session restartPolling];
+                });
+                return;
+            }
+
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagConnection" defaultValue:@"Error connecting to tag."]];
             return;
         }
+
+        self.tagRetryCount = 0;
         
         [self processNDEFTag:session tag:tag];
     }];
@@ -278,10 +290,20 @@
     [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
         if (error) {
             NSLog(@"%@", error);
+
+            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
+                self.tagRetryCount++;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                    [(id)session restartPolling];
+                });
+                return;
+            }
+
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagConnection" defaultValue:@"Error connecting to tag."]];
             return;
         }
 
+        self.tagRetryCount = 0;
         [self processNDEFTag:session tag:ndefTag metaData:tagMetaData];
     }];
 }
@@ -297,6 +319,7 @@
 - (void)startScanSession:(CDVInvokedUrlCommand*)command {
     
     self.writeMode = NO;
+    self.tagRetryCount = 0;
     
     NSLog(@"shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
     NSLog(@"callbackOnSessionStart %d", self.sendCallbackOnSessionStart);
@@ -342,9 +365,20 @@
     [tag queryNDEFStatusWithCompletionHandler:^(NFCNDEFStatus status, NSUInteger capacity, NSError * _Nullable error) {
         if (error) {
             NSLog(@"%@", error);
+
+            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
+                self.tagRetryCount++;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                    [(id)session restartPolling];
+                });
+                return;
+            }
+
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagStatus" defaultValue:@"Error getting tag status."]];
             return;
         }
+
+        self.tagRetryCount = 0;
                 
         if (self.writeMode) {
             [self writeNDEFTag:session status:status tag:tag];
@@ -380,6 +414,15 @@
         // Error Code=403 "NDEF tag does not contain any NDEF message" is not an error for this plugin
         if (error && error.code != 403) {
             NSLog(@"%@", error);
+
+            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
+                self.tagRetryCount++;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                    [(id)session restartPolling];
+                });
+                return;
+            }
+
             [self closeSession:session withError:[self localizeString:@"NFCDataReadFailed" defaultValue:@"Read Failed."]];
             return;
         } else {

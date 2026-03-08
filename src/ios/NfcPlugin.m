@@ -20,6 +20,7 @@
 @property (nonatomic, assign) BOOL returnTagInEvent;
 @property (nonatomic, assign) BOOL keepSessionOpen;
 @property (nonatomic, assign) NSInteger tagRetryCount;
+@property (nonatomic, assign) NSInteger retryCount;
 @property (strong, nonatomic) NFCReaderSession *nfcSession API_AVAILABLE(ios(11.0));
 @property (strong, nonatomic) NFCNDEFMessage *messageToWrite API_AVAILABLE(ios(11.0));
 @end
@@ -232,6 +233,8 @@
 
             if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
                 self.tagRetryCount++;
+                self.retryCount++;
+                [self sendRetryLogEvent:@"connectToTag" error:error];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
                     [(id)session restartPolling];
                 });
@@ -293,6 +296,8 @@
 
             if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
                 self.tagRetryCount++;
+                self.retryCount++;
+                [self sendRetryLogEvent:@"connectToTag" error:error];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
                     [(id)session restartPolling];
                 });
@@ -320,6 +325,7 @@
     
     self.writeMode = NO;
     self.tagRetryCount = 0;
+    self.retryCount = 0;
     
     NSLog(@"shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
     NSLog(@"callbackOnSessionStart %d", self.sendCallbackOnSessionStart);
@@ -368,6 +374,8 @@
 
             if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
                 self.tagRetryCount++;
+                self.retryCount++;
+                [self sendRetryLogEvent:@"queryNDEFStatus" error:error];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
                     [(id)session restartPolling];
                 });
@@ -417,6 +425,8 @@
 
             if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
                 self.tagRetryCount++;
+                self.retryCount++;
+                [self sendRetryLogEvent:@"readNDEF" error:error];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
                     [(id)session restartPolling];
                 });
@@ -509,6 +519,29 @@
 
 #pragma mark - internal implementation
 
+- (void) sendRetryLogEvent:(NSString *)stage error:(NSError *)error {
+    if (!channelCallbackId) {
+        return;
+    }
+    NSMutableDictionary *tag = [NSMutableDictionary new];
+    tag[@"type"] = @"sendLogEvent";
+    tag[@"message"] = @"NFC retry scheduled";
+    tag[@"retryCount"] = [NSNumber numberWithInteger:self.retryCount];
+    if (stage) {
+        tag[@"retryStage"] = stage;
+    }
+    if (error && error.localizedDescription) {
+        tag[@"error"] = error.localizedDescription;
+    }
+    tag[@"errorLevel"] = @1;
+    tag[@"nfcStatus"] = @"NFC_OK";
+    NSMutableDictionary *evt = [NSMutableDictionary new];
+    evt[@"type"] = @"ndef";
+    evt[@"tag"] = tag;
+    CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:evt];
+    [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:channelCallbackId];
+}
 - (void) sendError:(NSString *)message {
     // only send the error if the callback id exists
     if (sessionCallbackId) {
@@ -614,6 +647,7 @@
         }
         [dictionary setObject:array forKey:@"ndefMessage"];
     }
+    dictionary[@"retryCount"] = [NSNumber numberWithInteger:self.retryCount];
     
     return [dictionary copy];
 }

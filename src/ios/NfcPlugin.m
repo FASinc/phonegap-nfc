@@ -21,6 +21,9 @@
 @property (nonatomic, assign) BOOL keepSessionOpen;
 @property (nonatomic, assign) NSInteger tagRetryCount;
 @property (nonatomic, assign) NSInteger retryCount;
+@property (nonatomic, assign) NSInteger maxTagRetryCount;
+@property (nonatomic, assign) NSInteger maxRetryCount;
+@property (nonatomic, assign) NSInteger retryDelayMilliseconds;
 @property (strong, nonatomic) NFCReaderSession *nfcSession API_AVAILABLE(ios(11.0));
 @property (strong, nonatomic) NFCNDEFMessage *messageToWrite API_AVAILABLE(ios(11.0));
 @end
@@ -231,13 +234,7 @@
         if (error) {
             NSLog(@"%@", error);
 
-            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
-                self.tagRetryCount++;
-                self.retryCount++;
-                [self sendRetryLogEvent:@"connectToTag" error:error];
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                    [(id)session restartPolling];
-                });
+            if ([self retryTagReadIfAvailable:session stage:@"connectToTag" error:error]) {
                 return;
             }
 
@@ -294,13 +291,7 @@
         if (error) {
             NSLog(@"%@", error);
 
-            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
-                self.tagRetryCount++;
-                self.retryCount++;
-                [self sendRetryLogEvent:@"connectToTag" error:error];
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                    [(id)session restartPolling];
-                });
+            if ([self retryTagReadIfAvailable:session stage:@"connectToTag" error:error]) {
                 return;
             }
 
@@ -326,6 +317,9 @@
     self.writeMode = NO;
     self.tagRetryCount = 0;
     self.retryCount = 0;
+    self.maxTagRetryCount = 3;
+    self.maxRetryCount = 5;
+    self.retryDelayMilliseconds = 400; // gives CoreNFC a time to settle before calling restartPolling.
     
     NSLog(@"shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
     NSLog(@"callbackOnSessionStart %d", self.sendCallbackOnSessionStart);
@@ -372,13 +366,7 @@
         if (error) {
             NSLog(@"%@", error);
 
-            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
-                self.tagRetryCount++;
-                self.retryCount++;
-                [self sendRetryLogEvent:@"queryNDEFStatus" error:error];
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                    [(id)session restartPolling];
-                });
+            if ([self retryTagReadIfAvailable:session stage:@"queryNDEFStatus" error:error]) {
                 return;
             }
 
@@ -423,13 +411,7 @@
         if (error && error.code != 403) {
             NSLog(@"%@", error);
 
-            if (self.tagRetryCount < 1 && [session respondsToSelector:@selector(restartPolling)]) {
-                self.tagRetryCount++;
-                self.retryCount++;
-                [self sendRetryLogEvent:@"readNDEF" error:error];
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                    [(id)session restartPolling];
-                });
+            if ([self retryTagReadIfAvailable:session stage:@"readNDEF" error:error]) {
                 return;
             }
 
@@ -519,6 +501,35 @@
 
 #pragma mark - internal implementation
 
+- (BOOL) retryTagReadIfAvailable:(NFCReaderSession *)session stage:(NSString *)stage error:(NSError *)error API_AVAILABLE(ios(13.0)) {
+    if (self.tagRetryCount >= self.maxTagRetryCount) {
+        NSLog(@"NFC retry not scheduled for %@ because max tag retry count was reached. tagRetryCount=%ld maxTagRetryCount=%ld retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.tagRetryCount, (long)self.maxTagRetryCount, (long)self.retryCount, (long)self.maxRetryCount, error.localizedDescription);
+        return NO;
+    }
+
+    if (self.retryCount >= self.maxRetryCount) {
+        NSLog(@"NFC retry not scheduled for %@ because max total retry count was reached. tagRetryCount=%ld maxTagRetryCount=%ld retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.tagRetryCount, (long)self.maxTagRetryCount, (long)self.retryCount, (long)self.maxRetryCount, error.localizedDescription);
+        return NO;
+    }
+
+    if (![session respondsToSelector:@selector(restartPolling)]) {
+        NSLog(@"NFC retry not scheduled for %@ because restartPolling is unavailable. error=%@", stage, error.localizedDescription);
+        return NO;
+    }
+
+    self.tagRetryCount++;
+    self.retryCount++;
+
+    NSLog(@"NFC retry scheduled for %@. tagRetryCount=%ld maxTagRetryCount=%ld retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld error=%@", stage, (long)self.tagRetryCount, (long)self.maxTagRetryCount, (long)self.retryCount, (long)self.maxRetryCount, (long)self.retryDelayMilliseconds, error.localizedDescription);
+    [self sendRetryLogEvent:stage error:error];
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.retryDelayMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        [(id)session restartPolling];
+    });
+
+    return YES;
+}
+
 - (void) sendRetryLogEvent:(NSString *)stage error:(NSError *)error {
     if (!channelCallbackId) {
         return;
@@ -527,6 +538,10 @@
     tag[@"type"] = @"sendLogEvent";
     tag[@"message"] = @"NFC retry scheduled";
     tag[@"retryCount"] = [NSNumber numberWithInteger:self.retryCount];
+    tag[@"tagRetryCount"] = [NSNumber numberWithInteger:self.tagRetryCount];
+    tag[@"maxTagRetryCount"] = [NSNumber numberWithInteger:self.maxTagRetryCount];
+    tag[@"maxRetryCount"] = [NSNumber numberWithInteger:self.maxRetryCount];
+    tag[@"retryDelayMilliseconds"] = [NSNumber numberWithInteger:self.retryDelayMilliseconds];
     if (stage) {
         tag[@"retryStage"] = stage;
     }

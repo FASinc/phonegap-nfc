@@ -27,6 +27,7 @@
 @property (nonatomic, assign) NSInteger noTagDetectedTimeoutMilliseconds;
 @property (nonatomic, assign) NSInteger nfcSessionToken;
 @property (nonatomic, assign) BOOL nfcTagWasDetected;
+@property (nonatomic, assign) BOOL noTagDetectedTimeoutReached;
 @property (nonatomic, copy) dispatch_block_t noTagDetectedTimeoutBlock;
 @property (strong, nonatomic) NFCReaderSession *nfcSession API_AVAILABLE(ios(11.0));
 @property (strong, nonatomic) NFCNDEFMessage *messageToWrite API_AVAILABLE(ios(11.0));
@@ -262,13 +263,18 @@
     [self clearNoTagDetectedTimeout];
 
     if (error.code == NFCReaderSessionInvalidationErrorFirstNDEFTagRead) { // not an error
+        self.noTagDetectedTimeoutReached = NO;
         NSLog(@"Session ended after successful NDEF tag read");
         return;
     } else if (sessionCallbackId) {
-        [self sendError:error.localizedDescription];
+        NSString *message = self.noTagDetectedTimeoutReached
+            ? [self localizeString:@"NFCNoTagDetectedTimeout" defaultValue:@"NFC scan timed out. Please try again."]
+            : error.localizedDescription;
+        [self sendError:message];
         sessionCallbackId = NULL;
     }
 
+    self.noTagDetectedTimeoutReached = NO;
     connectedTag = NULL;
     connectedTagStatus = NFCNDEFStatusNotSupported;
 }
@@ -324,10 +330,14 @@
     [self clearNoTagDetectedTimeout];
 
     if (sessionCallbackId) {
-        [self sendError:error.localizedDescription];
+        NSString *message = self.noTagDetectedTimeoutReached
+            ? [self localizeString:@"NFCNoTagDetectedTimeout" defaultValue:@"NFC scan timed out. Please try again."]
+            : error.localizedDescription;
+        [self sendError:message];
         sessionCallbackId = NULL;
     }
 
+    self.noTagDetectedTimeoutReached = NO;
     connectedTag = NULL;
     connectedTagStatus = NFCNDEFStatusNotSupported;
 }
@@ -338,12 +348,14 @@
 - (void)startScanSession:(CDVInvokedUrlCommand*)command {
     
     self.writeMode = NO;
+    self.tagRetryCount = 0;
     self.retryCount = 0;
     self.maxTagRetryCount = 5;
     self.maxRetryCount = 7;
     self.retryDelayMilliseconds = 400; // gives CoreNFC a time to settle before calling restartPolling.
     self.noTagDetectedTimeoutMilliseconds = 10000;
     self.nfcTagWasDetected = NO;
+    self.noTagDetectedTimeoutReached = NO;
     self.nfcSessionToken++;
     
     NSLog(@"shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
@@ -564,6 +576,7 @@
 
         NSString *message = [strongSelf localizeString:@"NFCNoTagDetectedTimeout" defaultValue:@"NFC scan timed out. Please try again."];
 
+        strongSelf.noTagDetectedTimeoutReached = YES;
         NSLog(@"NFC no-tag timeout reached. Invalidating session. timeoutMilliseconds=%ld token=%ld", (long)strongSelf.noTagDetectedTimeoutMilliseconds, (long)token);
 
         if (@available(iOS 13.0, *)) {

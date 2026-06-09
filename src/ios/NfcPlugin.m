@@ -262,12 +262,17 @@
 - (void) readerSession:(NFCNDEFReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(11.0)) {
     NSLog(@"readerSession ended");
     [self clearNoTagDetectedTimeout];
+
     if (error.code == NFCReaderSessionInvalidationErrorFirstNDEFTagRead) { // not an error
         NSLog(@"Session ended after successful NDEF tag read");
         return;
-    } else {
+    } else if (sessionCallbackId) {
         [self sendError:error.localizedDescription];
+        sessionCallbackId = NULL;
     }
+
+    connectedTag = NULL;
+    connectedTagStatus = NFCNDEFStatusNotSupported;
 }
 
 - (void) readerSessionDidBecomeActive:(nonnull NFCReaderSession *)session API_AVAILABLE(ios(11.0)) {
@@ -320,7 +325,14 @@
 - (void)tagReaderSession:(NFCTagReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(13.0)) {
     NSLog(@"tagReaderSession ended");
     [self clearNoTagDetectedTimeout];
-    [self sendError:error.localizedDescription];
+
+    if (sessionCallbackId) {
+        [self sendError:error.localizedDescription];
+        sessionCallbackId = NULL;
+    }
+
+    connectedTag = NULL;
+    connectedTagStatus = NFCNDEFStatusNotSupported;
 }
 
 #pragma mark - Common NDEF Processing

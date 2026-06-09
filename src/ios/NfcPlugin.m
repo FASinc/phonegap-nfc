@@ -251,8 +251,6 @@
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagConnection" defaultValue:@"Error connecting to tag."]];
             return;
         }
-
-        self.tagRetryCount = 0;
         
         [self processNDEFTag:session tag:tag];
     }];
@@ -317,7 +315,6 @@
             return;
         }
 
-        self.tagRetryCount = 0;
         [self processNDEFTag:session tag:ndefTag metaData:tagMetaData];
     }];
 }
@@ -341,10 +338,9 @@
 - (void)startScanSession:(CDVInvokedUrlCommand*)command {
     
     self.writeMode = NO;
-    self.tagRetryCount = 0;
     self.retryCount = 0;
-    self.maxTagRetryCount = 3;
-    self.maxRetryCount = 5;
+    self.maxTagRetryCount = 5;
+    self.maxRetryCount = 7;
     self.retryDelayMilliseconds = 400; // gives CoreNFC a time to settle before calling restartPolling.
     self.noTagDetectedTimeoutMilliseconds = 10000;
     self.nfcTagWasDetected = NO;
@@ -404,8 +400,6 @@
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagStatus" defaultValue:@"Error getting tag status."]];
             return;
         }
-
-        self.tagRetryCount = 0;
                 
         if (self.writeMode) {
             [self writeNDEFTag:session status:status tag:tag];

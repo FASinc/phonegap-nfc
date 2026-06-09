@@ -24,6 +24,10 @@
 @property (nonatomic, assign) NSInteger maxTagRetryCount;
 @property (nonatomic, assign) NSInteger maxRetryCount;
 @property (nonatomic, assign) NSInteger retryDelayMilliseconds;
+@property (nonatomic, assign) NSInteger noTagDetectedTimeoutMilliseconds;
+@property (nonatomic, assign) NSInteger nfcSessionToken;
+@property (nonatomic, assign) BOOL nfcTagWasDetected;
+@property (nonatomic, copy) dispatch_block_t noTagDetectedTimeoutBlock;
 @property (strong, nonatomic) NFCReaderSession *nfcSession API_AVAILABLE(ios(11.0));
 @property (strong, nonatomic) NFCNDEFMessage *messageToWrite API_AVAILABLE(ios(11.0));
 @end
@@ -154,6 +158,7 @@
 
 - (void)cancelScan:(CDVInvokedUrlCommand*)command API_AVAILABLE(ios(11.0)){
     NSLog(@"cancelScan");
+    [self clearNoTagDetectedTimeout];
     if (self.nfcSession) {
         [self.nfcSession invalidateSession];
     }
@@ -166,6 +171,7 @@
 - (void)invalidateSession:(CDVInvokedUrlCommand*)command {
     NSLog(@"invalidateSession");
     NSLog(@"WARNING: invalidateSession is deprecated. Use cancelScan.");
+    [self clearNoTagDetectedTimeout];
     
     if (_nfcSession) {
         [_nfcSession invalidateSession];
@@ -209,6 +215,8 @@
 // iOS 11 & 12
 - (void) readerSession:(NFCNDEFReaderSession *)session didDetectNDEFs:(NSArray<NFCNDEFMessage *> *)messages API_AVAILABLE(ios(11.0)) {
     NSLog(@"NFCNDEFReaderSession didDetectNDEFs");
+    self.nfcTagWasDetected = YES;
+    [self clearNoTagDetectedTimeout];
     
     session.alertMessage = [self localizeString:@"NFCTagRead" defaultValue:@"Tag successfully read."];
     for (NFCNDEFMessage *message in messages) {
@@ -218,6 +226,8 @@
 
 // iOS 13
 - (void) readerSession:(NFCNDEFReaderSession *)session didDetectTags:(NSArray<__kindof id<NFCNDEFTag>> *)tags API_AVAILABLE(ios(13.0)) {
+    self.nfcTagWasDetected = YES;
+    [self clearNoTagDetectedTimeout];
     
     if (tags.count > 1) {
         session.alertMessage = [self localizeString:@"NFCMoreThanOneTag" defaultValue:@"More than 1 tag detected. Please remove all tags and try again."];
@@ -251,6 +261,7 @@
 
 - (void) readerSession:(NFCNDEFReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(11.0)) {
     NSLog(@"readerSession ended");
+    [self clearNoTagDetectedTimeout];
     if (error.code == NFCReaderSessionInvalidationErrorFirstNDEFTagRead) { // not an error
         NSLog(@"Session ended after successful NDEF tag read");
         return;
@@ -273,6 +284,8 @@
 
 - (void)tagReaderSession:(NFCTagReaderSession *)session didDetectTags:(NSArray<__kindof id<NFCTag>> *)tags API_AVAILABLE(ios(13.0)) {
     NSLog(@"tagReaderSession didDetectTags");
+    self.nfcTagWasDetected = YES;
+    [self clearNoTagDetectedTimeout];
     
     if (tags.count > 1) {
         session.alertMessage = [self localizeString:@"NFCMoreThanOneTag" defaultValue:@"More than 1 tag detected. Please remove all tags and try again."];
@@ -306,6 +319,7 @@
 
 - (void)tagReaderSession:(NFCTagReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(13.0)) {
     NSLog(@"tagReaderSession ended");
+    [self clearNoTagDetectedTimeout];
     [self sendError:error.localizedDescription];
 }
 
@@ -320,6 +334,9 @@
     self.maxTagRetryCount = 3;
     self.maxRetryCount = 5;
     self.retryDelayMilliseconds = 400; // gives CoreNFC a time to settle before calling restartPolling.
+    self.noTagDetectedTimeoutMilliseconds = 10000;
+    self.nfcTagWasDetected = NO;
+    self.nfcSessionToken++;
     
     NSLog(@"shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
     NSLog(@"callbackOnSessionStart %d", self.sendCallbackOnSessionStart);
@@ -340,6 +357,7 @@
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
         [self.nfcSession beginSession];
+        [self startNoTagDetectedTimeoutForSession:self.nfcSession token:self.nfcSessionToken];
         
     } else if (@available(iOS 11.0, *)) {
         NSLog(@"iOS < 13, using NFCNDEFReaderSession");
@@ -347,6 +365,7 @@
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
         [self.nfcSession beginSession];
+        [self startNoTagDetectedTimeoutForSession:self.nfcSession token:self.nfcSessionToken];
     } else {
         NSLog(@"iOS < 11, no NFC support");
         CDVPluginResult *pluginResult;
@@ -501,6 +520,57 @@
 
 #pragma mark - internal implementation
 
+- (void) clearNoTagDetectedTimeout {
+    if (self.noTagDetectedTimeoutBlock) {
+        dispatch_block_cancel(self.noTagDetectedTimeoutBlock);
+        self.noTagDetectedTimeoutBlock = nil;
+    }
+}
+
+- (void) startNoTagDetectedTimeoutForSession:(NFCReaderSession *)session token:(NSInteger)token API_AVAILABLE(ios(11.0)) {
+    [self clearNoTagDetectedTimeout];
+
+    if (self.noTagDetectedTimeoutMilliseconds <= 0) {
+        return;
+    }
+
+    __weak NfcPlugin *weakSelf = self;
+    dispatch_block_t timeoutBlock = dispatch_block_create(0, ^{
+        NfcPlugin *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+
+        if (strongSelf.nfcSessionToken != token) {
+            NSLog(@"NFC no-tag timeout ignored because session token changed. token=%ld currentToken=%ld", (long)token, (long)strongSelf.nfcSessionToken);
+            return;
+        }
+
+        if (strongSelf.nfcTagWasDetected) {
+            NSLog(@"NFC no-tag timeout ignored because a tag was already detected.");
+            return;
+        }
+
+        if (!strongSelf->sessionCallbackId) {
+            NSLog(@"NFC no-tag timeout ignored because sessionCallbackId is empty.");
+            return;
+        }
+
+        NSString *message = [strongSelf localizeString:@"NFCNoTagDetectedTimeout" defaultValue:@"NFC scan timed out. Please try again."];
+
+        NSLog(@"NFC no-tag timeout reached. Invalidating session. timeoutMilliseconds=%ld token=%ld", (long)strongSelf.noTagDetectedTimeoutMilliseconds, (long)token);
+
+        if (@available(iOS 13.0, *)) {
+            [session invalidateSessionWithErrorMessage:message];
+        } else {
+            [session invalidateSession];
+        }
+    });
+
+    self.noTagDetectedTimeoutBlock = timeoutBlock;
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.noTagDetectedTimeoutMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), timeoutBlock);
+}
 - (BOOL) retryTagReadIfAvailable:(NFCReaderSession *)session stage:(NSString *)stage error:(NSError *)error API_AVAILABLE(ios(13.0)) {
     if (self.tagRetryCount >= self.maxTagRetryCount) {
         NSLog(@"NFC retry not scheduled for %@ because max tag retry count was reached. tagRetryCount=%ld maxTagRetryCount=%ld retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.tagRetryCount, (long)self.maxTagRetryCount, (long)self.retryCount, (long)self.maxRetryCount, error.localizedDescription);
@@ -576,6 +646,7 @@
 
 - (void) closeSession:(NFCReaderSession *) session  API_AVAILABLE(ios(11.0)){
 
+    [self clearNoTagDetectedTimeout];
     // this is a hack to keep a read session open to allow writing
     if (self.keepSessionOpen) {
         return;
@@ -589,6 +660,7 @@
 }
 
 - (void) closeSession:(NFCReaderSession *) session withError:(NSString *) errorMessage  API_AVAILABLE(ios(11.0)){
+    [self clearNoTagDetectedTimeout];
     [self sendError:errorMessage];
 
     // kill the callback so Cordova doesn't get "Session invalidated by user"

@@ -593,10 +593,6 @@
 - (BOOL) retryTagReadIfAvailable:(NFCReaderSession *)session stage:(NSString *)stage error:(NSError *)error API_AVAILABLE(ios(13.0)) {
     NSString *errorMessage = error.localizedDescription ?: @"Unknown NFC error";
 
-    if (self.retryCount >= self.maxRetryCount) {
-        NSLog(@"NFC retry not scheduled for %@ because max retry count was reached. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
-        return NO;
-    }
 
     if (![session respondsToSelector:@selector(restartPolling)]) {
         NSLog(@"NFC retry not scheduled for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
@@ -607,6 +603,10 @@
     self.lastRetryStage = stage;
     self.lastRetryErrorMessage = errorMessage;
 
+    if (self.retryCount >= self.maxRetryCount) {
+        NSLog(@"NFC retry not scheduled for %@ because max retry count was reached. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+        return NO;
+    }
     NSLog(@"NFC retry scheduled for %@. retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, (long)self.retryDelayMilliseconds, errorMessage);
     [self sendRetryLogEvent:stage error:error];
 

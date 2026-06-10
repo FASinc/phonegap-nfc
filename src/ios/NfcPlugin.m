@@ -19,15 +19,15 @@
 @property (nonatomic, assign) BOOL returnTagInCallback;
 @property (nonatomic, assign) BOOL returnTagInEvent;
 @property (nonatomic, assign) BOOL keepSessionOpen;
-@property (nonatomic, assign) NSInteger tagRetryCount;
 @property (nonatomic, assign) NSInteger retryCount;
-@property (nonatomic, assign) NSInteger maxTagRetryCount;
 @property (nonatomic, assign) NSInteger maxRetryCount;
 @property (nonatomic, assign) NSInteger retryDelayMilliseconds;
 @property (nonatomic, assign) NSInteger noTagDetectedTimeoutMilliseconds;
 @property (nonatomic, assign) NSInteger nfcSessionToken;
 @property (nonatomic, assign) BOOL nfcTagWasDetected;
 @property (nonatomic, assign) BOOL noTagDetectedTimeoutReached;
+@property (nonatomic, copy) NSString *lastRetryStage;
+@property (nonatomic, copy) NSString *lastRetryErrorMessage;
 @property (nonatomic, copy) dispatch_block_t noTagDetectedTimeoutBlock;
 @property (strong, nonatomic) NFCReaderSession *nfcSession API_AVAILABLE(ios(11.0));
 @property (strong, nonatomic) NFCNDEFMessage *messageToWrite API_AVAILABLE(ios(11.0));
@@ -348,14 +348,14 @@
 - (void)startScanSession:(CDVInvokedUrlCommand*)command {
     
     self.writeMode = NO;
-    self.tagRetryCount = 0;
     self.retryCount = 0;
-    self.maxTagRetryCount = 5;
-    self.maxRetryCount = 7;
+    self.maxRetryCount = 5;
     self.retryDelayMilliseconds = 500; // gives CoreNFC a time to settle before calling restartPolling.
     self.noTagDetectedTimeoutMilliseconds = 10000;
     self.nfcTagWasDetected = NO;
     self.noTagDetectedTimeoutReached = NO;
+    self.lastRetryStage = nil;
+    self.lastRetryErrorMessage = nil;
     self.nfcSessionToken++;
     
     NSLog(@"shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
@@ -591,29 +591,27 @@
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.noTagDetectedTimeoutMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), timeoutBlock);
 }
 - (BOOL) retryTagReadIfAvailable:(NFCReaderSession *)session stage:(NSString *)stage error:(NSError *)error API_AVAILABLE(ios(13.0)) {
-    if (self.tagRetryCount >= self.maxTagRetryCount) {
-        NSLog(@"NFC retry not scheduled for %@ because max tag retry count was reached. tagRetryCount=%ld maxTagRetryCount=%ld retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.tagRetryCount, (long)self.maxTagRetryCount, (long)self.retryCount, (long)self.maxRetryCount, error.localizedDescription);
-        return NO;
-    }
+    NSString *errorMessage = error.localizedDescription ?: @"Unknown NFC error";
 
     if (self.retryCount >= self.maxRetryCount) {
-        NSLog(@"NFC retry not scheduled for %@ because max total retry count was reached. tagRetryCount=%ld maxTagRetryCount=%ld retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.tagRetryCount, (long)self.maxTagRetryCount, (long)self.retryCount, (long)self.maxRetryCount, error.localizedDescription);
+        NSLog(@"NFC retry not scheduled for %@ because max retry count was reached. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
         return NO;
     }
 
     if (![session respondsToSelector:@selector(restartPolling)]) {
-        NSLog(@"NFC retry not scheduled for %@ because restartPolling is unavailable. error=%@", stage, error.localizedDescription);
+        NSLog(@"NFC retry not scheduled for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
         return NO;
     }
 
-    self.tagRetryCount++;
     self.retryCount++;
+    self.lastRetryStage = stage;
+    self.lastRetryErrorMessage = errorMessage;
 
-    NSLog(@"NFC retry scheduled for %@. tagRetryCount=%ld maxTagRetryCount=%ld retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld error=%@", stage, (long)self.tagRetryCount, (long)self.maxTagRetryCount, (long)self.retryCount, (long)self.maxRetryCount, (long)self.retryDelayMilliseconds, error.localizedDescription);
+    NSLog(@"NFC retry scheduled for %@. retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, (long)self.retryDelayMilliseconds, errorMessage);
     [self sendRetryLogEvent:stage error:error];
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.retryDelayMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-        NSLog(@"NFC retry executing restartPolling for %@. tagRetryCount=%ld retryCount=%ld", stage, (long)self.tagRetryCount, (long)self.retryCount);
+        NSLog(@"NFC retry executing restartPolling for %@. retryCount=%ld", stage, (long)self.retryCount);
         [(id)session restartPolling];
     });
 
@@ -624,20 +622,18 @@
     if (!channelCallbackId) {
         return;
     }
+    NSString *errorMessage = error.localizedDescription ?: @"Unknown NFC error";
     NSMutableDictionary *tag = [NSMutableDictionary new];
     tag[@"type"] = @"sendLogEvent";
     tag[@"message"] = @"NFC retry scheduled";
     tag[@"retryCount"] = [NSNumber numberWithInteger:self.retryCount];
-    tag[@"tagRetryCount"] = [NSNumber numberWithInteger:self.tagRetryCount];
-    tag[@"maxTagRetryCount"] = [NSNumber numberWithInteger:self.maxTagRetryCount];
     tag[@"maxRetryCount"] = [NSNumber numberWithInteger:self.maxRetryCount];
     tag[@"retryDelayMilliseconds"] = [NSNumber numberWithInteger:self.retryDelayMilliseconds];
+    tag[@"nfcSessionToken"] = [NSNumber numberWithInteger:self.nfcSessionToken];
     if (stage) {
         tag[@"retryStage"] = stage;
     }
-    if (error && error.localizedDescription) {
-        tag[@"error"] = error.localizedDescription;
-    }
+    tag[@"error"] = errorMessage;
     tag[@"errorLevel"] = @1;
     tag[@"nfcStatus"] = @"NFC_OK";
     NSMutableDictionary *evt = [NSMutableDictionary new];
@@ -648,6 +644,30 @@
     [self.commandDelegate sendPluginResult:pluginResult callbackId:channelCallbackId];
 }
 - (void) sendError:(NSString *)message {
+    if (channelCallbackId) {
+        NSMutableDictionary *tag = [NSMutableDictionary new];
+        tag[@"type"] = @"sendLogEvent";
+        tag[@"message"] = @"NFC scan error";
+        tag[@"error"] = message ?: @"Unknown NFC error";
+        tag[@"retryCount"] = [NSNumber numberWithInteger:self.retryCount];
+        tag[@"maxRetryCount"] = [NSNumber numberWithInteger:self.maxRetryCount];
+        tag[@"retryDelayMilliseconds"] = [NSNumber numberWithInteger:self.retryDelayMilliseconds];
+        tag[@"nfcSessionToken"] = [NSNumber numberWithInteger:self.nfcSessionToken];
+        if (self.lastRetryStage) {
+            tag[@"retryStage"] = self.lastRetryStage;
+        }
+        if (self.lastRetryErrorMessage) {
+            tag[@"lastRetryError"] = self.lastRetryErrorMessage;
+        }
+        tag[@"errorLevel"] = @2;
+        tag[@"nfcStatus"] = @"NFC_ERROR";
+        NSMutableDictionary *evt = [NSMutableDictionary new];
+        evt[@"type"] = @"ndef";
+        evt[@"tag"] = tag;
+        CDVPluginResult *logResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:evt];
+        [logResult setKeepCallback:[NSNumber numberWithBool:YES]];
+        [self.commandDelegate sendPluginResult:logResult callbackId:channelCallbackId];
+    }
     // only send the error if the callback id exists
     if (sessionCallbackId) {
         NSLog(@"sendError: %@", message);
@@ -755,6 +775,14 @@
         [dictionary setObject:array forKey:@"ndefMessage"];
     }
     dictionary[@"retryCount"] = [NSNumber numberWithInteger:self.retryCount];
+    dictionary[@"maxRetryCount"] = [NSNumber numberWithInteger:self.maxRetryCount];
+    dictionary[@"nfcSessionToken"] = [NSNumber numberWithInteger:self.nfcSessionToken];
+    if (self.lastRetryStage) {
+        dictionary[@"retryStage"] = self.lastRetryStage;
+    }
+    if (self.lastRetryErrorMessage) {
+        dictionary[@"lastRetryError"] = self.lastRetryErrorMessage;
+    }
     
     return [dictionary copy];
 }
@@ -805,7 +833,7 @@
 }
 
 - (NSString*) localizeString:(NSString *)key defaultValue:(NSString*) defaultValue {
-    return NSLocalizedString(key, comment: "") != key ? NSLocalizedString(key, comment: "") : defaultValue;
+    return NSLocalizedString(key, comment: @"") != key ? NSLocalizedString(key, comment: @"") : defaultValue;
 }
 
 @end

@@ -613,6 +613,7 @@
     [self sendRetryLogEvent:stage error:error];
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.retryDelayMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        NSLog(@"NFC retry executing restartPolling for %@. tagRetryCount=%ld retryCount=%ld", stage, (long)self.tagRetryCount, (long)self.retryCount);
         [(id)session restartPolling];
     });
 

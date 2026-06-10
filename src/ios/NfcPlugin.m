@@ -352,7 +352,7 @@
     self.retryCount = 0;
     self.maxTagRetryCount = 5;
     self.maxRetryCount = 7;
-    self.retryDelayMilliseconds = 400; // gives CoreNFC a time to settle before calling restartPolling.
+    self.retryDelayMilliseconds = 500; // gives CoreNFC a time to settle before calling restartPolling.
     self.noTagDetectedTimeoutMilliseconds = 10000;
     self.nfcTagWasDetected = NO;
     self.noTagDetectedTimeoutReached = NO;

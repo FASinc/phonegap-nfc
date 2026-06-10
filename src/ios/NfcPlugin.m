@@ -13,6 +13,7 @@
     id<NFCNDEFTag> connectedTag API_AVAILABLE(ios(13.0));
     NFCNDEFStatus connectedTagStatus API_AVAILABLE(ios(13.0));
 }
+@property (nonatomic, assign) BOOL goplantTestMode;
 @property (nonatomic, assign) BOOL writeMode;
 @property (nonatomic, assign) BOOL shouldUseTagReaderSession;
 @property (nonatomic, assign) BOOL sendCallbackOnSessionStart;
@@ -37,17 +38,17 @@
 
 - (void)pluginInitialize {
 
-    NSLog(@"PhoneGap NFC - Cordova Plugin");
-    NSLog(@"(c) 2017-2020 Don Coleman");
+    NSLog(@"PGNFC-PhoneGap NFC - Cordova Plugin");
+    NSLog(@"PGNFC-(c) 2017-2020 Don Coleman");
 
     [super pluginInitialize];
     
     if (@available(iOS 11, *)) {
         if (![NFCNDEFReaderSession readingAvailable]) {
-            NSLog(@"NFC Support is NOT available");
+            NSLog(@"PGNFC-NFC Support is NOT available");
         }
     } else {
-        NSLog(@"NFC Support is NOT available before iOS 11");
+        NSLog(@"PGNFC-NFC Support is NOT available before iOS 11");
     }
 }
 
@@ -59,8 +60,8 @@
 }
 
 - (void)beginSession:(CDVInvokedUrlCommand*)command {
-    NSLog(@"beginSession");
-    NSLog(@"WARNING: beginSession is deprecated. Use scanNdef or scanTag.");
+    NSLog(@"PGNFC-beginSession");
+    NSLog(@"PGNFC-WARNING: beginSession is deprecated. Use scanNdef or scanTag.");
 
     self.shouldUseTagReaderSession = NO;
     self.sendCallbackOnSessionStart = YES;  // Not sure why we were doing this
@@ -72,7 +73,7 @@
 }
 
 - (void)scanNdef:(CDVInvokedUrlCommand*)command {
-    NSLog(@"scanNdef");
+    NSLog(@"PGNFC-scanNdef");
 
     self.shouldUseTagReaderSession = NO;
     self.sendCallbackOnSessionStart = NO;
@@ -86,7 +87,7 @@
 }
 
 - (void)scanTag:(CDVInvokedUrlCommand*)command {
-    NSLog(@"scanTag");
+    NSLog(@"PGNFC-scanTag");
 
     self.shouldUseTagReaderSession = YES;
     self.sendCallbackOnSessionStart = NO;
@@ -100,7 +101,7 @@
 }
 
 - (void)writeTag:(CDVInvokedUrlCommand*)command API_AVAILABLE(ios(13.0)){
-    NSLog(@"writeTag");
+    NSLog(@"PGNFC-writeTag");
     
     self.writeMode = YES;
     self.shouldUseTagReaderSession = NO;
@@ -121,7 +122,7 @@
             NFCNDEFPayload *record = [[NFCNDEFPayload alloc] initWithFormat:tnf type:type identifier:identifier payload:payload];
             [payloads addObject:record];
         }
-        NSLog(@"%@", payloads);
+        NSLog(@"PGNFC-%@", payloads);
         NFCNDEFMessage *message = [[NFCNDEFMessage alloc] initWithNDEFRecords:payloads];
         self.messageToWrite = message;
     } @catch(NSException *e) {
@@ -134,14 +135,14 @@
         reusingSession = YES;
     } else {                                                // create a new session
         if (self.shouldUseTagReaderSession) {
-            NSLog(@"Using NFCTagReaderSession");
+            NSLog(@"PGNFC-Using NFCTagReaderSession");
 
             self.nfcSession = [[NFCTagReaderSession alloc]
                        initWithPollingOption:(NFCPollingISO14443 | NFCPollingISO15693)
                        delegate:self queue:dispatch_get_main_queue()];
 
         } else {
-            NSLog(@"Using NFCTagReaderSession");
+            NSLog(@"PGNFC-Using NFCTagReaderSession");
             self.nfcSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:nil invalidateAfterFirstRead:FALSE];
         }
     }
@@ -158,7 +159,7 @@
 }
 
 - (void)cancelScan:(CDVInvokedUrlCommand*)command API_AVAILABLE(ios(11.0)){
-    NSLog(@"cancelScan");
+    NSLog(@"PGNFC-cancelScan");
     [self clearNoTagDetectedTimeout];
     if (self.nfcSession) {
         [self.nfcSession invalidateSession];
@@ -170,8 +171,8 @@
 }
 
 - (void)invalidateSession:(CDVInvokedUrlCommand*)command {
-    NSLog(@"invalidateSession");
-    NSLog(@"WARNING: invalidateSession is deprecated. Use cancelScan.");
+    NSLog(@"PGNFC-invalidateSession");
+    NSLog(@"PGNFC-WARNING: invalidateSession is deprecated. Use cancelScan.");
     [self clearNoTagDetectedTimeout];
     
     if (_nfcSession) {
@@ -184,20 +185,20 @@
 
 // Nothing happens here, the event listener is registered in JavaScript
 - (void)registerNdef:(CDVInvokedUrlCommand *)command {
-    NSLog(@"registerNdef");
+    NSLog(@"PGNFC-registerNdef");
     CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 // Nothing happens here, the event listener is removed in JavaScript
 - (void)removeNdef:(CDVInvokedUrlCommand *)command {
-    NSLog(@"removeNdef");
+    NSLog(@"PGNFC-removeNdef");
     CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 - (void)enabled:(CDVInvokedUrlCommand *)command {
-    NSLog(@"enabled");
+    NSLog(@"PGNFC-enabled");
     CDVPluginResult *pluginResult;
     if (@available(iOS 11.0, *)) {
         if ([NFCNDEFReaderSession readingAvailable]) {
@@ -215,7 +216,7 @@
 
 // iOS 11 & 12
 - (void) readerSession:(NFCNDEFReaderSession *)session didDetectNDEFs:(NSArray<NFCNDEFMessage *> *)messages API_AVAILABLE(ios(11.0)) {
-    NSLog(@"NFCNDEFReaderSession didDetectNDEFs");
+    NSLog(@"PGNFC-NFCNDEFReaderSession didDetectNDEFs");
     self.nfcTagWasDetected = YES;
     [self clearNoTagDetectedTimeout];
     
@@ -233,7 +234,7 @@
     if (tags.count > 1) {
         session.alertMessage = [self localizeString:@"NFCMoreThanOneTag" defaultValue:@"More than 1 tag detected. Please remove all tags and try again."];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-            NSLog(@"restaring polling");
+            NSLog(@"PGNFC-restaring polling");
             [session restartPolling];
         });
         return;
@@ -243,28 +244,30 @@
     
     [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
         if (error) {
-            NSLog(@"%@", error);
+            NSLog(@"PGNFC-connectToTag-error: B1 %@", error);
 
             if ([self retryTagReadIfAvailable:session stage:@"connectToTag" error:error]) {
+                NSLog(@"PGNFC-connectToTag-error: B2 %@", error);
                 return;
             }
 
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagConnection" defaultValue:@"Error connecting to tag."]];
+            NSLog(@"PGNFC-connectToTag-error: B3 %@", error);
             return;
         }
-        
+        NSLog(@"PGNFC-connectToTag-ok: B4 ");
         [self processNDEFTag:session tag:tag];
     }];
     
 }
 
 - (void) readerSession:(NFCNDEFReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(11.0)) {
-    NSLog(@"readerSession ended");
+    NSLog(@"PGNFC-readerSession ended");
     [self clearNoTagDetectedTimeout];
 
     if (error.code == NFCReaderSessionInvalidationErrorFirstNDEFTagRead) { // not an error
         self.noTagDetectedTimeoutReached = NO;
-        NSLog(@"Session ended after successful NDEF tag read");
+        NSLog(@"PGNFC-Session ended after successful NDEF tag read");
         return;
     } else if (sessionCallbackId) {
         NSString *message = self.noTagDetectedTimeoutReached
@@ -280,26 +283,26 @@
 }
 
 - (void) readerSessionDidBecomeActive:(nonnull NFCReaderSession *)session API_AVAILABLE(ios(11.0)) {
-    NSLog(@"readerSessionDidBecomeActive");
+    NSLog(@"PGNFC-readerSessionDidBecomeActive");
     [self sessionDidBecomeActive:session];
 }
 
 #pragma mark - NFCTagReaderSessionDelegate
 
 - (void)tagReaderSessionDidBecomeActive:(NFCTagReaderSession *)session API_AVAILABLE(ios(13.0)) {
-    NSLog(@"tagReaderSessionDidBecomeActive");
+    NSLog(@"PGNFC-tagReaderSessionDidBecomeActive");
     [self sessionDidBecomeActive:session];
 }
 
 - (void)tagReaderSession:(NFCTagReaderSession *)session didDetectTags:(NSArray<__kindof id<NFCTag>> *)tags API_AVAILABLE(ios(13.0)) {
-    NSLog(@"tagReaderSession didDetectTags");
+    NSLog(@"PGNFC-tagReaderSession didDetectTags");
     self.nfcTagWasDetected = YES;
     [self clearNoTagDetectedTimeout];
     
     if (tags.count > 1) {
         session.alertMessage = [self localizeString:@"NFCMoreThanOneTag" defaultValue:@"More than 1 tag detected. Please remove all tags and try again."];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-            NSLog(@"restaring polling");
+            NSLog(@"PGNFC-restaring polling");
             [session restartPolling];
         });
         return;
@@ -311,22 +314,24 @@
     
     [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
         if (error) {
-            NSLog(@"%@", error);
+            NSLog(@"PGNFC-connectToTag-error: A1 %@", error);
 
             if ([self retryTagReadIfAvailable:session stage:@"connectToTag" error:error]) {
+                NSLog(@"PGNFC-connectToTag-error: A2 %@", error);
                 return;
             }
 
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagConnection" defaultValue:@"Error connecting to tag."]];
+            NSLog(@"PGNFC-connectToTag-error: A3 %@", error);
             return;
         }
-
+        NSLog(@"PGNFC-connectToTag-ok: A4");
         [self processNDEFTag:session tag:ndefTag metaData:tagMetaData];
     }];
 }
 
 - (void)tagReaderSession:(NFCTagReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(13.0)) {
-    NSLog(@"tagReaderSession ended");
+    NSLog(@"PGNFC-tagReaderSession ended");
     [self clearNoTagDetectedTimeout];
 
     if (sessionCallbackId) {
@@ -358,20 +363,26 @@
     self.lastRetryErrorMessage = nil;
     self.nfcSessionToken++;
     
-    NSLog(@"shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
-    NSLog(@"callbackOnSessionStart %d", self.sendCallbackOnSessionStart);
-    NSLog(@"returnTagInCallback %d", self.returnTagInCallback);
-    NSLog(@"returnTagInEvent %d", self.returnTagInEvent);
+    self.goplantTestMode = YES;
+    if(self.goplantTestMode == YES){
+        self.maxRetryCount = 20;
+        self.retryDelayMilliseconds = 2000; // gives CoreNFC a time to settle before calling restartPolling.
+        self.noTagDetectedTimeoutMilliseconds = 20000;
+    }
+    NSLog(@"PGNFC-shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
+    NSLog(@"PGNFC-callbackOnSessionStart %d", self.sendCallbackOnSessionStart);
+    NSLog(@"PGNFC-returnTagInCallback %d", self.returnTagInCallback);
+    NSLog(@"PGNFC-returnTagInEvent %d", self.returnTagInEvent);
     
     if (@available(iOS 13.0, *)) {
         
         if (self.shouldUseTagReaderSession) {
-            NSLog(@"Using NFCTagReaderSession");
+            NSLog(@"PGNFC-Using NFCTagReaderSession");
             self.nfcSession = [[NFCTagReaderSession alloc]
                            initWithPollingOption:(NFCPollingISO14443 | NFCPollingISO15693)
                            delegate:self queue:dispatch_get_main_queue()];
         } else {
-            NSLog(@"Using NFCNDEFReaderSession");
+            NSLog(@"PGNFC-Using NFCNDEFReaderSession");
             self.nfcSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:nil invalidateAfterFirstRead:TRUE];
         }
         sessionCallbackId = [command.callbackId copy];
@@ -380,14 +391,14 @@
         [self startNoTagDetectedTimeoutForSession:self.nfcSession token:self.nfcSessionToken];
         
     } else if (@available(iOS 11.0, *)) {
-        NSLog(@"iOS < 13, using NFCNDEFReaderSession");
+        NSLog(@"PGNFC-iOS < 13, using NFCNDEFReaderSession");
         self.nfcSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:nil invalidateAfterFirstRead:TRUE];
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
         [self.nfcSession beginSession];
         [self startNoTagDetectedTimeoutForSession:self.nfcSession token:self.nfcSessionToken];
     } else {
-        NSLog(@"iOS < 11, no NFC support");
+        NSLog(@"PGNFC-iOS < 11, no NFC support");
         CDVPluginResult *pluginResult;
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"NFC requires iOS 11"];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -403,7 +414,7 @@
                             
     [tag queryNDEFStatusWithCompletionHandler:^(NFCNDEFStatus status, NSUInteger capacity, NSError * _Nullable error) {
         if (error) {
-            NSLog(@"%@", error);
+            NSLog(@"PGNFC-%@", error);
 
             if ([self retryTagReadIfAvailable:session stage:@"queryNDEFStatus" error:error]) {
                 return;
@@ -430,7 +441,7 @@
 - (void)readNDEFTag:(NFCReaderSession * _Nonnull)session status:(NFCNDEFStatus)status tag:(id<NFCNDEFTag>)tag metaData:(NSMutableDictionary * _Nonnull)metaData  API_AVAILABLE(ios(13.0)){
         
     if (status == NFCNDEFStatusNotSupported) {
-        NSLog(@"Tag does not support NDEF");
+        NSLog(@"PGNFC-Tag does not support NDEF");
         [self fireTagEvent:metaData];
         [self closeSession:session];
         return;
@@ -446,7 +457,7 @@
 
         // Error Code=403 "NDEF tag does not contain any NDEF message" is not an error for this plugin
         if (error && error.code != 403) {
-            NSLog(@"%@", error);
+            NSLog(@"PGNFC-%@", error);
 
             if ([self retryTagReadIfAvailable:session stage:@"readNDEF" error:error]) {
                 return;
@@ -455,7 +466,7 @@
             [self closeSession:session withError:[self localizeString:@"NFCDataReadFailed" defaultValue:@"Read Failed."]];
             return;
         } else {
-            NSLog(@"%@", message);
+            NSLog(@"PGNFC-%@", message);
             session.alertMessage = [self localizeString:@"NFCTagRead" defaultValue:@"Tag successfully read."];
             [self fireNdefEvent:message metaData:metaData];
             [self closeSession:session];
@@ -477,7 +488,7 @@
             
             [tag writeNDEF: self.messageToWrite completionHandler:^(NSError * _Nullable error) {
                 if (error) {
-                    NSLog(@"%@", error);
+                    NSLog(@"PGNFC-%@", error);
                     [self closeSession:session withError:[self localizeString:@"NFCDataWriteFailed" defaultValue:@"Write failed."]];
                 } else {
                     session.alertMessage = [self localizeString:@"NFCDataWrote" defaultValue:@"Wrote data to NFC tag."];
@@ -527,7 +538,7 @@
             break;
     }
                     
-    NSLog(@"getTagInfo: %@ with uid %@", type, uid);
+    NSLog(@"PGNFC-getTagInfo: %@ with uid %@", type, uid);
     
     [tagInfo setValue:type forKey:@"type"];
     if (uid) {
@@ -539,19 +550,22 @@
 #pragma mark - internal implementation
 
 - (void) clearNoTagDetectedTimeout {
+    NSLog(@"PGNFC-clearNoTagDetectedTimeout - 1");
     if (self.noTagDetectedTimeoutBlock) {
+        NSLog(@"PGNFC-clearNoTagDetectedTimeout - 2");
         dispatch_block_cancel(self.noTagDetectedTimeoutBlock);
         self.noTagDetectedTimeoutBlock = nil;
     }
+    NSLog(@"PGNFC-clearNoTagDetectedTimeout - 3");
 }
 
 - (void) startNoTagDetectedTimeoutForSession:(NFCReaderSession *)session token:(NSInteger)token API_AVAILABLE(ios(11.0)) {
     [self clearNoTagDetectedTimeout];
-
+    NSLog(@"PGNFC-startNoTagDetectedTimeoutForSession - 1");
     if (self.noTagDetectedTimeoutMilliseconds <= 0) {
         return;
     }
-
+    NSLog(@"PGNFC-startNoTagDetectedTimeoutForSession - 1");
     __weak NfcPlugin *weakSelf = self;
     dispatch_block_t timeoutBlock = dispatch_block_create(0, ^{
         NfcPlugin *strongSelf = weakSelf;
@@ -560,24 +574,24 @@
         }
 
         if (strongSelf.nfcSessionToken != token) {
-            NSLog(@"NFC no-tag timeout ignored because session token changed. token=%ld currentToken=%ld", (long)token, (long)strongSelf.nfcSessionToken);
+            NSLog(@"PGNFC-NFC no-tag timeout ignored because session token changed. token=%ld currentToken=%ld", (long)token, (long)strongSelf.nfcSessionToken);
             return;
         }
 
         if (strongSelf.nfcTagWasDetected) {
-            NSLog(@"NFC no-tag timeout ignored because a tag was already detected.");
+            NSLog(@"PGNFC-NFC no-tag timeout ignored because a tag was already detected.");
             return;
         }
 
         if (!strongSelf->sessionCallbackId) {
-            NSLog(@"NFC no-tag timeout ignored because sessionCallbackId is empty.");
+            NSLog(@"PGNFC-NFC no-tag timeout ignored because sessionCallbackId is empty.");
             return;
         }
 
         NSString *message = [strongSelf localizeString:@"NFCNoTagDetectedTimeout" defaultValue:@"NFC scan timed out. Please try again."];
 
         strongSelf.noTagDetectedTimeoutReached = YES;
-        NSLog(@"NFC no-tag timeout reached. Invalidating session. timeoutMilliseconds=%ld token=%ld", (long)strongSelf.noTagDetectedTimeoutMilliseconds, (long)token);
+        NSLog(@"PGNFC-NFC no-tag timeout reached. Invalidating session. timeoutMilliseconds=%ld token=%ld", (long)strongSelf.noTagDetectedTimeoutMilliseconds, (long)token);
 
         if (@available(iOS 13.0, *)) {
             [session invalidateSessionWithErrorMessage:message];
@@ -592,10 +606,10 @@
 }
 - (BOOL) retryTagReadIfAvailable:(NFCReaderSession *)session stage:(NSString *)stage error:(NSError *)error API_AVAILABLE(ios(13.0)) {
     NSString *errorMessage = error.localizedDescription ?: @"Unknown NFC error";
-
+    NSLog(@"PGNFC-NFC 0 retry begin for %@. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
 
     if (![session respondsToSelector:@selector(restartPolling)]) {
-        NSLog(@"NFC retry not scheduled for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+        NSLog(@"PGNFC-NFC 1 retry not scheduled for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
         return NO;
     }
 
@@ -604,14 +618,17 @@
     self.lastRetryErrorMessage = errorMessage;
 
     if (self.retryCount >= self.maxRetryCount) {
-        NSLog(@"NFC retry not scheduled for %@ because max retry count was reached. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+        NSLog(@"PGNFC-NFC 2 retry not scheduled for %@ because max retry count was reached. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
         return NO;
     }
-    NSLog(@"NFC retry scheduled for %@. retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, (long)self.retryDelayMilliseconds, errorMessage);
+    NSLog(@"PGNFC-NFC 3 retry scheduled for %@. retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, (long)self.retryDelayMilliseconds, errorMessage);
     [self sendRetryLogEvent:stage error:error];
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.retryDelayMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-        NSLog(@"NFC retry executing restartPolling for %@. retryCount=%ld", stage, (long)self.retryCount);
+        NSLog(@"PGNFC-NFC 4 retry executing restartPolling for %@. retryCount=%ld", stage, (long)self.retryCount);
+            if (![session respondsToSelector:@selector(restartPolling)]) {
+                NSLog(@"PGNFC-NFC 5 retry not restarted for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+            }        
         [(id)session restartPolling];
     });
 
@@ -670,7 +687,7 @@
     }
     // only send the error if the callback id exists
     if (sessionCallbackId) {
-        NSLog(@"sendError: %@", message);
+        NSLog(@"PGNFC-sendError: %@", message);
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:message];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:sessionCallbackId];
     }
@@ -726,14 +743,14 @@
 
 // TODO rename method since we're using the channel or callback instead of firing an event
 -(void) fireNdefEvent:(NFCNDEFMessage *) ndefMessage metaData:(NSDictionary *)metaData API_AVAILABLE(ios(11.0)) {
-    NSLog(@"fireNdefEvent");
+    NSLog(@"PGNFC-fireNdefEvent");
     
     NSMutableDictionary *nfcEvent = [NSMutableDictionary new];
     nfcEvent[@"type"] = @"ndef";
     nfcEvent[@"tag"] = [self buildTagDictionary:ndefMessage metaData:metaData];
 
     if (sessionCallbackId && self.returnTagInCallback) {
-        NSLog(@"Sending NFC data via sessionCallbackId");
+        NSLog(@"PGNFC-Sending NFC data via sessionCallbackId");
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:nfcEvent[@"tag"]];
 //        [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:sessionCallbackId];
@@ -741,7 +758,7 @@
     }
     
     if (channelCallbackId && self.returnTagInEvent) {
-        NSLog(@"Sending NFC data via channelCallbackId so an NDEF event fires)");
+        NSLog(@"PGNFC-Sending NFC data via channelCallbackId so an NDEF event fires)");
         
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:nfcEvent];
         [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
@@ -825,7 +842,7 @@
     NSString *jsonString;
     if (! jsonData) {
         jsonString = [NSString stringWithFormat:@"Error creating JSON for NDEF Message: %@", error];
-        NSLog(@"%@", jsonString);
+        NSLog(@"PGNFC-%@", jsonString);
     } else {
         jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
     }

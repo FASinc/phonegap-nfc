@@ -106,8 +106,8 @@
 
     NSArray<NSDictionary *> *options = [command argumentAtIndex:0];
     self.keepSessionOpen = [options valueForKey:@"keepSessionOpen"];
-    self.requestedMaxRetryCount = [[options valueForKey:@"maxRetryCount"] integerValue];
-    self.requestedRetryDelayMilliseconds = [[options valueForKey:@"retryDelayMilliseconds"] integerValue];
+    self.requestedMaxRetryCount = [[options valueForKey:@"requestedMaxRetryCount"] integerValue];
+    self.requestedRetryDelayMilliseconds = [[options valueForKey:@"requestedRetryDelayMilliseconds"] integerValue];
 
     [self startScanSession:command];
 }

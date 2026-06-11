@@ -647,13 +647,33 @@
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.retryDelayMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         NSLog(@"PGNFC-NFC 4 retry executing restartPolling for %@. retryCount=%ld", stage, (long)self.retryCount);
             if (![session respondsToSelector:@selector(restartPolling)]) {
-                NSLog(@"PGNFC-NFC 5 retry not restarted for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
-            }        
+                NSLog(@"PGNFC-NFC 5a retry not restarted for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+                return;
+            }
+
+            if (!session.isReady) {
+                NSLog(@"PGNFC-NFC 5b retry not restarted for %@ because session is not ready. Will try once more. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, self.retryDelayMilliseconds * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                    NSLog(@"PGNFC-NFC 6 retry executing second restartPolling attempt for %@. retryCount=%ld", stage, (long)self.retryCount);
+
+                    if (![session respondsToSelector:@selector(restartPolling)]) {
+                        NSLog(@"PGNFC-NFC 7a retry not restarted for %@ because restartPolling is unavailable for the session. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+                        return;
+                    }
+                    if (!session.isReady) {
+                        NSLog(@"PGNFC-NFC 7b retry not restarted for %@ because session is still not ready. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
+                        return;
+                    }
+                    [(id)session restartPolling];
+                });
+                return;
+            }
         [(id)session restartPolling];
     });
 
-    return YES;
-}
+        return YES;
+    }
 
 - (void) sendRetryLogEvent:(NSString *)stage error:(NSError *)error {
     if (!channelCallbackId) {

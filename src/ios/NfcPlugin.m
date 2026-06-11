@@ -89,6 +89,14 @@
 - (void)scanTag:(CDVInvokedUrlCommand*)command {
     NSLog(@"PGNFC-scanTag");
 
+    if (@available(iOS 11.0, *)) {
+        if (self.nfcSession && self.nfcSession.isReady) {
+            NSLog(@"PGNFC-scanTag rejected because an NFC session is already active.");
+            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"NFC session already active."];
+            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+            return;
+        }
+    }
     self.shouldUseTagReaderSession = YES;
     self.sendCallbackOnSessionStart = NO;
     self.returnTagInCallback = YES;
@@ -385,6 +393,12 @@
             NSLog(@"PGNFC-Using NFCNDEFReaderSession");
             self.nfcSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:nil invalidateAfterFirstRead:TRUE];
         }
+        if (!self.nfcSession) {
+            NSLog(@"PGNFC-startScanSession failed because nfcSession was not created.");
+            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Unable to start NFC session."];
+            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+            return;
+        }
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
         [self.nfcSession beginSession];
@@ -393,6 +407,12 @@
     } else if (@available(iOS 11.0, *)) {
         NSLog(@"PGNFC-iOS < 13, using NFCNDEFReaderSession");
         self.nfcSession = [[NFCNDEFReaderSession alloc]initWithDelegate:self queue:nil invalidateAfterFirstRead:TRUE];
+        if (!self.nfcSession) {
+            NSLog(@"PGNFC-startScanSession failed because nfcSession was not created.");
+            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Unable to start NFC session."];
+            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+            return;
+        }
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
         [self.nfcSession beginSession];

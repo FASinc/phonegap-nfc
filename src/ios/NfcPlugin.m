@@ -22,6 +22,8 @@
 @property (nonatomic, assign) BOOL keepSessionOpen;
 @property (nonatomic, assign) NSInteger retryCount;
 @property (nonatomic, assign) NSInteger maxRetryCount;
+@property (nonatomic, assign) NSInteger requestedMaxRetryCount; //JS OVERRIDE
+@property (nonatomic, assign) NSInteger requestedRetryDelayMilliseconds; //JS OVERRIDE
 @property (nonatomic, assign) NSInteger retryDelayMilliseconds;
 @property (nonatomic, assign) NSInteger noTagDetectedTimeoutMilliseconds;
 @property (nonatomic, assign) NSInteger nfcSessionToken;
@@ -104,6 +106,8 @@
 
     NSArray<NSDictionary *> *options = [command argumentAtIndex:0];
     self.keepSessionOpen = [options valueForKey:@"keepSessionOpen"];
+    self.requestedMaxRetryCount = [[options valueForKey:@"maxRetryCount"] integerValue];
+    self.requestedRetryDelayMilliseconds = [[options valueForKey:@"retryDelayMilliseconds"] integerValue];
 
     [self startScanSession:command];
 }
@@ -377,6 +381,15 @@
         self.retryDelayMilliseconds = 2000; // gives CoreNFC a time to settle before calling restartPolling.
         self.noTagDetectedTimeoutMilliseconds = 20000;
     }
+
+    if (self.requestedMaxRetryCount > 0) {
+        self.maxRetryCount = self.requestedMaxRetryCount;
+    }
+
+    if (self.requestedRetryDelayMilliseconds > 0) {
+        self.retryDelayMilliseconds = self.requestedRetryDelayMilliseconds;
+    }
+
     NSLog(@"PGNFC-shouldUseTagReaderSession %d", self.shouldUseTagReaderSession);
     NSLog(@"PGNFC-callbackOnSessionStart %d", self.sendCallbackOnSessionStart);
     NSLog(@"PGNFC-returnTagInCallback %d", self.returnTagInCallback);

@@ -14,6 +14,7 @@
     NFCNDEFStatus connectedTagStatus API_AVAILABLE(ios(13.0));
 }
 @property (nonatomic, assign) BOOL goplantTestMode;
+@property (nonatomic, assign) BOOL requestedGoplantTestMode;
 @property (nonatomic, assign) BOOL writeMode;
 @property (nonatomic, assign) BOOL shouldUseTagReaderSession;
 @property (nonatomic, assign) BOOL sendCallbackOnSessionStart;
@@ -59,7 +60,7 @@
 - (void)channel:(CDVInvokedUrlCommand *)command {
     // the channel is used to send NFC tag data to the web view
     channelCallbackId = [command.callbackId copy];
-    NSLog(@"PGNFC-channel %ld", channelCallbackId);
+    NSLog(@"PGNFC-channel %@", channelCallbackId);
 }
 
 - (void)beginSession:(CDVInvokedUrlCommand*)command {
@@ -109,7 +110,10 @@
     self.keepSessionOpen = [options valueForKey:@"keepSessionOpen"];
     self.requestedMaxRetryCount = [[options valueForKey:@"requestedMaxRetryCount"] integerValue];
     self.requestedRetryDelayMilliseconds = [[options valueForKey:@"requestedRetryDelayMilliseconds"] integerValue];
-    self.requestedGoplantTestMode = [[options valueForKey:@"requestedGoplantTestMode"] booleanValue];
+    self.requestedGoplantTestMode = [options valueForKey:@"requestedGoplantTestMode"];
+    NSLog(@"PGNFC-scanTag requestedMaxRetryCount =%ld", (long)self.requestedMaxRetryCount);
+    NSLog(@"PGNFC-scanTag requestedRetryDelayMilliseconds =%ld", (long)self.requestedRetryDelayMilliseconds);
+    NSLog(@"PGNFC-scanTag requestedGoplantTestMode =%d", self.requestedGoplantTestMode);
 
     [self startScanSession:command];
 }
@@ -369,8 +373,8 @@
     
     self.writeMode = NO;
     self.retryCount = 0;
-    self.maxRetryCount = 5;
-    self.retryDelayMilliseconds = 500; // gives CoreNFC a time to settle before calling restartPolling.
+    self.maxRetryCount = 10;
+    self.retryDelayMilliseconds = 2000; // gives CoreNFC a time to settle before calling restartPolling.
     self.noTagDetectedTimeoutMilliseconds = 10000;
     self.nfcTagWasDetected = NO;
     self.noTagDetectedTimeoutReached = NO;

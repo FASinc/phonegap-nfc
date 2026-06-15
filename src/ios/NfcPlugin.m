@@ -109,6 +109,7 @@
     self.keepSessionOpen = [options valueForKey:@"keepSessionOpen"];
     self.requestedMaxRetryCount = [[options valueForKey:@"requestedMaxRetryCount"] integerValue];
     self.requestedRetryDelayMilliseconds = [[options valueForKey:@"requestedRetryDelayMilliseconds"] integerValue];
+    self.requestedGoplantTestMode = [[options valueForKey:@"requestedGoplantTestMode"] booleanValue];
 
     [self startScanSession:command];
 }
@@ -377,12 +378,7 @@
     self.lastRetryErrorMessage = nil;
     self.nfcSessionToken++;
     
-    self.goplantTestMode = YES;
-    if(self.goplantTestMode == YES){
-        self.maxRetryCount = 20;
-        self.retryDelayMilliseconds = 3000; // gives CoreNFC a time to settle before calling restartPolling.
-        self.noTagDetectedTimeoutMilliseconds = 20000;
-    }
+    self.goplantTestMode = self.requestedGoplantTestMode;
 
     if (self.requestedMaxRetryCount > 0) {
         self.maxRetryCount = self.requestedMaxRetryCount;
@@ -432,7 +428,7 @@
             [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
             return;
         }
-        NSLog(@"PGNFC-startScanSession 4+ failed because nfcSession was not created.");
+        NSLog(@"PGNFC-startScanSession 4+ ok");
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
         [self.nfcSession beginSession];
@@ -703,7 +699,9 @@
             if (![session respondsToSelector:@selector(restartPolling)]) {
                 NSLog(@"PGNFC-NFC 4e- retryTagReadIfAvailable not restarted for %@ because restartPolling is unavailable. retryCount=%ld maxRetryCount=%ld error=%@", stage, (long)self.retryCount, (long)self.maxRetryCount, errorMessage);
             }        
+            if(self.goplantTestMode == YES){
             self.nfcSession.alertMessage = [NSString stringWithFormat:[self localizeString:@"NFCHoldNearTag" defaultValue:@"Retry %ld in progress."], (long)self.retryCount];
+            }
             [(id)session restartPolling];
         } @catch(NSException *e) {
             NSLog(@"PGNFC-NFC 4x- retryTagReadIfAvailable executing restartPolling Error=%@", e);
@@ -769,14 +767,14 @@
     }
     // only send the error if the callback id exists
     if (sessionCallbackId) {
-        NSLog(@"PGNFC-sendError: %@", message);
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:message];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:sessionCallbackId];
     }
+    NSLog(@"PGNFC-sendError: %@", message);
 }
 
 - (void) sessionDidBecomeActive:(NFCReaderSession *) session  API_AVAILABLE(ios(11.0)){
-    NSLog(@"PGNFC-sessionDidBecomeActive 1");
+    NSLog(@"PGNFC-sessionDidBecomeActive 1 sessionCallbackId=%@ sendCallbackOnSessionStart=%d", sessionCallbackId, self.sendCallbackOnSessionStart);
     if (sessionCallbackId && self.sendCallbackOnSessionStart) {
         NSLog(@"PGNFC-sessionDidBecomeActive 2");
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];

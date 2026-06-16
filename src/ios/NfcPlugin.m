@@ -682,7 +682,7 @@
         BOOL respondsToRestartPolling = hasActiveSession ? [activeSession respondsToSelector:@selector(restartPolling)] : NO;
         NSString *activeSessionClass = hasActiveSession ? NSStringFromClass([activeSession class]) : @"nil";
         BOOL hasNoTagDetectedTimeout = strongSelf.noTagDetectedTimeoutBlock != nil;
-        NSLog(@"PGNFC-STATE tick=%ld stage=%@ token=%ld currentToken=%ld hasActiveSession=%d sameSession=%d activeSession=%@ activeSessionClass=%@ isReady=%d respondsToRestartPolling=%d sessionCallbackId=%@ channelCallbackId=%@ nfcTagWasDetected=%d noTagDetectedTimeoutReached=%d retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld noTagDetectedTimeoutMilliseconds=%ld keepSessionOpen=%d writeMode=%d shouldUseTagReaderSession=%d returnTagInCallback=%d returnTagInEvent=%d sendCallbackOnSessionStart=%d noTagDetectedTimeoutBlock=%d",
+        NSLog(@"PGNFC-NfcStateLogger-STATE tick=%ld stage=%@ token=%ld currentToken=%ld hasActiveSession=%d sameSession=%d activeSession=%@ activeSessionClass=%@ isReady=%d respondsToRestartPolling=%d sessionCallbackId=%@ channelCallbackId=%@ nfcTagWasDetected=%d noTagDetectedTimeoutReached=%d retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld noTagDetectedTimeoutMilliseconds=%ld keepSessionOpen=%d writeMode=%d shouldUseTagReaderSession=%d returnTagInCallback=%d returnTagInEvent=%d sendCallbackOnSessionStart=%d noTagDetectedTimeoutBlock=%d",
               (long)strongSelf.nfcStateLoggerTick,
               stage,
               (long)token,

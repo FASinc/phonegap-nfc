@@ -181,7 +181,7 @@
 - (void)cancelScan:(CDVInvokedUrlCommand*)command API_AVAILABLE(ios(11.0)){
     NSLog(@"PGNFC-cancelScan");
     [self clearNoTagDetectedTimeout];
-    [self clearNfcStateLogger];
+    [self clearNfcStateLogger:@"cancelScan"];
     if (self.nfcSession) {
         [self.nfcSession invalidateSession];
     }
@@ -195,7 +195,7 @@
     NSLog(@"PGNFC-invalidateSession");
     NSLog(@"PGNFC-WARNING: invalidateSession is deprecated. Use cancelScan.");
     [self clearNoTagDetectedTimeout];
-    [self clearNfcStateLogger];
+    [self clearNfcStateLogger:@"invalidateSession"];
     
     if (_nfcSession) {
         [_nfcSession invalidateSession];
@@ -287,7 +287,7 @@
 - (void) readerSession:(NFCNDEFReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(11.0)) {
     NSLog(@"PGNFC-readerSession ended");
     [self clearNoTagDetectedTimeout];
-    [self clearNfcStateLogger];
+    [self clearNfcStateLogger:@"readerSession didInvalidateWithError"];
 
     if (error.code == NFCReaderSessionInvalidationErrorFirstNDEFTagRead) { // not an error
         self.noTagDetectedTimeoutReached = NO;
@@ -357,7 +357,7 @@
 - (void)tagReaderSession:(NFCTagReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(13.0)) {
     NSLog(@"PGNFC-tagReaderSession ended");
     [self clearNoTagDetectedTimeout];
-    [self clearNfcStateLogger];
+    [self clearNfcStateLogger:@"tagReaderSession didInvalidateWithError"];
 
     if (sessionCallbackId) {
         NSString *message = self.noTagDetectedTimeoutReached
@@ -634,17 +634,21 @@
 }
 
 - (void) clearNfcStateLogger {
-    NSLog(@"PGNFC-clearNfcStateLogger - 1");
+    [self clearNfcStateLogger:@"unknown"];
+}
+
+- (void) clearNfcStateLogger:(NSString *)reason {
+    NSLog(@"PGNFC-clearNfcStateLogger - 1 reason=%@", reason);
     if (self.nfcStateLoggerTimer) {
-        NSLog(@"PGNFC-clearNfcStateLogger - 2");
+        NSLog(@"PGNFC-clearNfcStateLogger - 2 reason=%@", reason);
         dispatch_source_cancel(self.nfcStateLoggerTimer);
         self.nfcStateLoggerTimer = nil;
     }
     self.nfcStateLoggerTick = 0;
-    NSLog(@"PGNFC-clearNfcStateLogger - 3");
+    NSLog(@"PGNFC-clearNfcStateLogger - 3 reason=%@", reason);
 }
 - (void) startNfcStateLoggerForSession:(NFCReaderSession *)session token:(NSInteger)token stage:(NSString *)stage intervalMilliseconds:(NSInteger)intervalMilliseconds API_AVAILABLE(ios(11.0)) {
-    [self clearNfcStateLogger];
+    [self clearNfcStateLogger:@"startNfcStateLoggerForSession"];
 
     if (intervalMilliseconds <= 0) {
         NSLog(@"PGNFC-startNfcStateLogger skipped because intervalMilliseconds <= 0");
@@ -707,13 +711,13 @@
 
         if (strongSelf.nfcSessionToken != token) {
             NSLog(@"PGNFC-STATE stopping because token changed. token=%ld currentToken=%ld", (long)token, (long)strongSelf.nfcSessionToken);
-            [strongSelf clearNfcStateLogger];
+            [strongSelf clearNfcStateLogger:@"state logger token changed"];
             return;
         }
 
         if (strongSelf.nfcStateLoggerTick >= 180) {
             NSLog(@"PGNFC-STATE stopping because max debug ticks reached.");
-            [strongSelf clearNfcStateLogger];
+            [strongSelf clearNfcStateLogger:@"state logger max ticks reached"];
             return;
         }
     });
@@ -896,7 +900,7 @@
         NSLog(@"PGNFC-closeSession 11");
         return;
     }
-    [self clearNfcStateLogger]; //I've put this after the self.keepSessionOpen, so we can observe the kept-open session for write reuse
+    [self clearNfcStateLogger:@"closeSession"]; // I've put this after the self.keepSessionOpen, so we can observe the kept-open session for write reuse
 
     NSLog(@"PGNFC-closeSession 12");
     // kill the callback so the Cordova doesn't get "Session invalidated by user"
@@ -909,7 +913,7 @@
 - (void) closeSession:(NFCReaderSession *) session withError:(NSString *) errorMessage  API_AVAILABLE(ios(11.0)){
     NSLog(@"PGNFC-closeSession 1");
     [self clearNoTagDetectedTimeout];
-    [self clearNfcStateLogger];
+    [self clearNfcStateLogger:@"closeSession withError"];
     [self sendError:errorMessage];
 
     // kill the callback so Cordova doesn't get "Session invalidated by user"

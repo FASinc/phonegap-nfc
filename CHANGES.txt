@@ -1,3 +1,9 @@
+= 1.6.1 =
+Add native NFC no-response timeout to prevent stuck scan sessions
+
+= 1.5.1 =
+Add silent retry for transient NFC tag read/connect failures
+
 = 1.4.1 =
 Send error logs to JS for NDEF message parse failure and tag connection issues via sendLogToJs
 

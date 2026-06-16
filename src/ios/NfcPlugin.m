@@ -33,6 +33,8 @@
 @property (nonatomic, copy) NSString *lastRetryStage;
 @property (nonatomic, copy) NSString *lastRetryErrorMessage;
 @property (nonatomic, copy) dispatch_block_t noTagDetectedTimeoutBlock;
+@property (nonatomic, strong) dispatch_source_t nfcStateLoggerTimer;
+@property (nonatomic, assign) NSInteger nfcStateLoggerTick;
 @property (strong, nonatomic) NFCReaderSession *nfcSession API_AVAILABLE(ios(11.0));
 @property (strong, nonatomic) NFCNDEFMessage *messageToWrite API_AVAILABLE(ios(11.0));
 @end
@@ -179,6 +181,7 @@
 - (void)cancelScan:(CDVInvokedUrlCommand*)command API_AVAILABLE(ios(11.0)){
     NSLog(@"PGNFC-cancelScan");
     [self clearNoTagDetectedTimeout];
+    [self clearNfcStateLogger];
     if (self.nfcSession) {
         [self.nfcSession invalidateSession];
     }
@@ -192,6 +195,7 @@
     NSLog(@"PGNFC-invalidateSession");
     NSLog(@"PGNFC-WARNING: invalidateSession is deprecated. Use cancelScan.");
     [self clearNoTagDetectedTimeout];
+    [self clearNfcStateLogger];
     
     if (_nfcSession) {
         [_nfcSession invalidateSession];
@@ -283,6 +287,7 @@
 - (void) readerSession:(NFCNDEFReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(11.0)) {
     NSLog(@"PGNFC-readerSession ended");
     [self clearNoTagDetectedTimeout];
+    [self clearNfcStateLogger];
 
     if (error.code == NFCReaderSessionInvalidationErrorFirstNDEFTagRead) { // not an error
         self.noTagDetectedTimeoutReached = NO;
@@ -352,6 +357,7 @@
 - (void)tagReaderSession:(NFCTagReaderSession *)session didInvalidateWithError:(NSError *)error API_AVAILABLE(ios(13.0)) {
     NSLog(@"PGNFC-tagReaderSession ended");
     [self clearNoTagDetectedTimeout];
+    [self clearNfcStateLogger];
 
     if (sessionCallbackId) {
         NSString *message = self.noTagDetectedTimeoutReached
@@ -435,6 +441,9 @@
         NSLog(@"PGNFC-startScanSession 4+ ok");
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
+        if (self.goplantTestMode == YES) {
+            [self startNfcStateLoggerForSession:self.nfcSession token:self.nfcSessionToken stage:@"startScanSession" intervalMilliseconds:500];
+        }
         [self.nfcSession beginSession];
         [self startNoTagDetectedTimeoutForSession:self.nfcSession token:self.nfcSessionToken];
         
@@ -449,6 +458,9 @@
         }
         sessionCallbackId = [command.callbackId copy];
         self.nfcSession.alertMessage = [self localizeString:@"NFCHoldNearTag" defaultValue:@"Hold near NFC tag to scan."];
+        if (self.goplantTestMode == YES) {
+            [self startNfcStateLoggerForSession:self.nfcSession token:self.nfcSessionToken stage:@"startScanSession" intervalMilliseconds:500];
+        }
         [self.nfcSession beginSession];
         [self startNoTagDetectedTimeoutForSession:self.nfcSession token:self.nfcSessionToken];
     } else {
@@ -621,6 +633,94 @@
     NSLog(@"PGNFC-clearNoTagDetectedTimeout - 3");
 }
 
+- (void) clearNfcStateLogger {
+    NSLog(@"PGNFC-clearNfcStateLogger - 1");
+    if (self.nfcStateLoggerTimer) {
+        NSLog(@"PGNFC-clearNfcStateLogger - 2");
+        dispatch_source_cancel(self.nfcStateLoggerTimer);
+        self.nfcStateLoggerTimer = nil;
+    }
+    self.nfcStateLoggerTick = 0;
+    NSLog(@"PGNFC-clearNfcStateLogger - 3");
+}
+- (void) startNfcStateLoggerForSession:(NFCReaderSession *)session token:(NSInteger)token stage:(NSString *)stage intervalMilliseconds:(NSInteger)intervalMilliseconds API_AVAILABLE(ios(11.0)) {
+    [self clearNfcStateLogger];
+
+    if (intervalMilliseconds <= 0) {
+        NSLog(@"PGNFC-startNfcStateLogger skipped because intervalMilliseconds <= 0");
+        return;
+    }
+
+    NSLog(@"PGNFC-startNfcStateLogger stage=%@ intervalMilliseconds=%ld token=%ld", stage, (long)intervalMilliseconds, (long)token);
+
+    self.nfcStateLoggerTick = 0;
+
+    __weak NfcPlugin *weakSelf = self;
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+
+    dispatch_source_set_timer(timer,
+                              dispatch_time(DISPATCH_TIME_NOW, intervalMilliseconds * NSEC_PER_MSEC),
+                              intervalMilliseconds * NSEC_PER_MSEC,
+                              50 * NSEC_PER_MSEC);
+
+    dispatch_source_set_event_handler(timer, ^{
+        NfcPlugin *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+
+        strongSelf.nfcStateLoggerTick++;
+
+        NFCReaderSession *activeSession = strongSelf.nfcSession;
+        BOOL hasActiveSession = activeSession != nil;
+        BOOL sameSession = activeSession == session;
+        BOOL isReady = hasActiveSession ? activeSession.isReady : NO;
+        BOOL respondsToRestartPolling = hasActiveSession ? [activeSession respondsToSelector:@selector(restartPolling)] : NO;
+        NSString *activeSessionClass = hasActiveSession ? NSStringFromClass([activeSession class]) : @"nil";
+        BOOL hasNoTagDetectedTimeout = strongSelf.noTagDetectedTimeoutBlock != nil;
+        NSLog(@"PGNFC-STATE tick=%ld stage=%@ token=%ld currentToken=%ld hasActiveSession=%d sameSession=%d activeSession=%@ activeSessionClass=%@ isReady=%d respondsToRestartPolling=%d sessionCallbackId=%@ channelCallbackId=%@ nfcTagWasDetected=%d noTagDetectedTimeoutReached=%d retryCount=%ld maxRetryCount=%ld retryDelayMilliseconds=%ld noTagDetectedTimeoutMilliseconds=%ld keepSessionOpen=%d writeMode=%d shouldUseTagReaderSession=%d returnTagInCallback=%d returnTagInEvent=%d sendCallbackOnSessionStart=%d noTagDetectedTimeoutBlock=%d",
+              (long)strongSelf.nfcStateLoggerTick,
+              stage,
+              (long)token,
+              (long)strongSelf.nfcSessionToken,
+              hasActiveSession,
+              sameSession,
+              activeSession,
+              activeSessionClass,
+              isReady,
+              respondsToRestartPolling,
+              strongSelf->sessionCallbackId,
+              strongSelf->channelCallbackId,
+              strongSelf.nfcTagWasDetected,
+              strongSelf.noTagDetectedTimeoutReached,
+              (long)strongSelf.retryCount,
+              (long)strongSelf.maxRetryCount,
+              (long)strongSelf.retryDelayMilliseconds,
+              (long)strongSelf.noTagDetectedTimeoutMilliseconds,
+              strongSelf.keepSessionOpen,
+              strongSelf.writeMode,
+              strongSelf.shouldUseTagReaderSession,
+              strongSelf.returnTagInCallback,
+              strongSelf.returnTagInEvent,
+              strongSelf.sendCallbackOnSessionStart,
+              hasNoTagDetectedTimeout);
+
+        if (strongSelf.nfcSessionToken != token) {
+            NSLog(@"PGNFC-STATE stopping because token changed. token=%ld currentToken=%ld", (long)token, (long)strongSelf.nfcSessionToken);
+            [strongSelf clearNfcStateLogger];
+            return;
+        }
+
+        if (strongSelf.nfcStateLoggerTick >= 180) {
+            NSLog(@"PGNFC-STATE stopping because max debug ticks reached.");
+            [strongSelf clearNfcStateLogger];
+            return;
+        }
+    });
+
+    self.nfcStateLoggerTimer = timer;
+    dispatch_resume(timer);
+}
 - (void) startNoTagDetectedTimeoutForSession:(NFCReaderSession *)session token:(NSInteger)token API_AVAILABLE(ios(11.0)) {
     [self clearNoTagDetectedTimeout];
     NSLog(@"PGNFC-startNoTagDetectedTimeoutForSession - 1+");
@@ -790,11 +890,14 @@
 - (void) closeSession:(NFCReaderSession *) session  API_AVAILABLE(ios(11.0)){
     NSLog(@"PGNFC-closeSession 10");
     [self clearNoTagDetectedTimeout];
+    
     // this is a hack to keep a read session open to allow writing
     if (self.keepSessionOpen) {
         NSLog(@"PGNFC-closeSession 11");
         return;
     }
+    [self clearNfcStateLogger]; //I've put this after the self.keepSessionOpen, so we can observe the kept-open session for write reuse
+
     NSLog(@"PGNFC-closeSession 12");
     // kill the callback so the Cordova doesn't get "Session invalidated by user"
     sessionCallbackId = NULL;
@@ -806,6 +909,7 @@
 - (void) closeSession:(NFCReaderSession *) session withError:(NSString *) errorMessage  API_AVAILABLE(ios(11.0)){
     NSLog(@"PGNFC-closeSession 1");
     [self clearNoTagDetectedTimeout];
+    [self clearNfcStateLogger];
     [self sendError:errorMessage];
 
     // kill the callback so Cordova doesn't get "Session invalidated by user"

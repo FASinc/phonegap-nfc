@@ -267,15 +267,15 @@
     
     [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
         if (error) {
-            NSLog(@"PGNFC-connectToTag-error: B1 %@", error);
+            NSLog(@"PGNFC-connectToTag-error: B1- %@", error);
 
             if ([self retryTagReadIfAvailable:session stage:@"connectToTag" error:error]) {
-                NSLog(@"PGNFC-connectToTag-error: B2 %@", error);
+                NSLog(@"PGNFC-connectToTag-error: B2- %@", error);
                 return;
             }
 
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagConnection" defaultValue:@"Error connecting to tag."]];
-            NSLog(@"PGNFC-connectToTag-error: B3 %@", error);
+            NSLog(@"PGNFC-connectToTag-error: B3- %@", error);
             return;
         }
         NSLog(@"PGNFC-connectToTag-ok: B4 ");
@@ -338,18 +338,18 @@
     
     [session connectToTag:tag completionHandler:^(NSError * _Nullable error) {
         if (error) {
-            NSLog(@"PGNFC-connectToTag-error: A1 %@", error);
+            NSLog(@"PGNFC-connectToTag-error: A1- %@", error);
 
             if ([self retryTagReadIfAvailable:session stage:@"connectToTag" error:error]) {
-                NSLog(@"PGNFC-connectToTag-error: A2 %@", error);
+                NSLog(@"PGNFC-connectToTag-error: A2- %@", error);
                 return;
             }
 
             [self closeSession:session withError:[self localizeString:@"NFCErrorTagConnection" defaultValue:@"Error connecting to tag."]];
-            NSLog(@"PGNFC-connectToTag-error: A3 %@", error);
+            NSLog(@"PGNFC-connectToTag-error: A3- %@", error);
             return;
         }
-        NSLog(@"PGNFC-connectToTag-ok: A4");
+        NSLog(@"PGNFC-connectToTag-ok: A4+");
         [self processNDEFTag:session tag:ndefTag metaData:tagMetaData];
     }];
 }

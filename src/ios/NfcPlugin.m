@@ -112,7 +112,7 @@
     self.keepSessionOpen = [options valueForKey:@"keepSessionOpen"];
     self.requestedMaxRetryCount = [[options valueForKey:@"requestedMaxRetryCount"] integerValue];
     self.requestedRetryDelayMilliseconds = [[options valueForKey:@"requestedRetryDelayMilliseconds"] integerValue];
-    self.requestedGoplantTestMode = [options valueForKey:@"requestedGoplantTestMode"];
+    self.requestedGoplantTestMode = [[options valueForKey:@"requestedGoplantTestMode"] boolValue];
     NSLog(@"PGNFC-scanTag requestedMaxRetryCount =%ld", (long)self.requestedMaxRetryCount);
     NSLog(@"PGNFC-scanTag requestedRetryDelayMilliseconds =%ld", (long)self.requestedRetryDelayMilliseconds);
     NSLog(@"PGNFC-scanTag requestedGoplantTestMode =%d", self.requestedGoplantTestMode);
